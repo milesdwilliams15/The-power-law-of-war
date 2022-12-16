@@ -1,0 +1,296 @@
+---
+title: "Untitled"
+author: "Miles D. Williams"
+date: '2022-12-12'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# set up
+source(here::here("00_setup", "custom.R"))
+source(here::here("00_setup", "helpers.R"))
+
+# saving figs
+save_fig <- function(name) {
+  ggsave(
+    here::here("02_figs", name),
+    height = 4,
+    width = 6.5
+  )
+}
+```
+
+```{r}
+# data
+if(file.exists(here::here("01_data", "clean_data.csv"))) {
+  Data <- read_csv(here::here("01_data", "clean_data.csv"))
+} else {
+  library(peacesciencer)
+  create_dyadyears(subset_years = 1816:2010) %>%
+    #add_cow_wars(type = "inter") %>%
+    left_join(
+      cow_war_inter,
+      by = c("ccode1", "ccode2", "year")
+    ) %>%
+    add_sdp_gdp() -> Data
+  Data %>%
+    transmute(
+      ccode = ccode1, year, warnum,
+      deaths = batdeath1 + batdeath2,
+      pop = exp(wbpopest1) + exp(wbpopest2)
+    ) -> Data
+  
+  Data %>%
+    group_by(ccode, warnum) %>%
+    summarize(
+      year = min(year),
+      deaths = max(deaths),
+      pop = max(pop)
+    ) %>%
+    group_by(warnum) %>%
+    summarize(
+      year = min(year),
+      deaths = sum(deaths, na.rm=T),
+      pop = sum(pop, na.rm = T)
+    ) %>%
+    ungroup -> Data
+  Data %>%
+    mutate(
+      period = ifelse(year > 1945, "post-1945", "pre-1945"),
+      deaths_pc = deaths / pop
+    ) -> Data
+  write_csv(
+    na.omit(Data),
+    file = here::here("01_data", "clean_data.csv")
+  )
+}
+```
+
+```{r}
+library(patchwork)
+p1 <- ggplot(Data) +
+  aes(x = log(deaths_pc),
+      y = log(PXx(deaths_pc))) +
+  geom_point(
+    color = qual[3]
+  ) +
+  geom_smooth(
+    data = Data %>%
+      mutate(
+        y = log(PXx(deaths_pc))
+      ) %>% filter(
+      deaths_pc >= pl.est(deaths_pc)[1]
+    ),
+    aes(x = log(deaths_pc),
+        y = y),
+    method = "lm",
+    se = F,
+    color = qual[4]
+  ) +
+  labs(
+    x = "War Deaths per Capita (log)",
+    y = "log[Pr(X > x)]",
+    subtitle = "Power-law model of war deaths"
+  )
+p2 <- ggplot(Data) +
+  aes(x = log(deaths_pc),
+      y = logit(PXx(deaths_pc))) +
+  geom_point(
+    color = qual[3]
+  ) +
+  geom_smooth(
+    method = "lm",
+    se = F,
+    color = qual[4]
+  ) +
+  labs(
+    x = "War Deaths per Capita (log)",
+    y = "logit[Pr(X > x)]",
+    subtitle = "Logistic model of war deaths"
+  )
+p1 + p2 +
+  plot_annotation(
+    title = "Power-law or Logit?"
+  )
+save_fig("fig1.png")
+```
+
+
+```{r}
+pl.fit <- pl(Data$deaths_pc)
+ll.fit <- ll(Data$deaths_pc)
+pl.fit$estimate[1] <- (100 * pl.fit$estimate[1])
+pl.fit$bootstrap$xmin <- (100 * pl.fit$bootstrap$xmin)
+library(kableExtra)
+list(pl.fit, ll.fit) %>%
+  map_dfr(
+    ~ tibble(
+      " " = names(.x$estimate),
+      Estimate = .x$estimate,
+      Lower = apply(.x$bootstrap, 2, function(x) quantile(x, 0.025))[-3],
+      Upper = apply(.x$bootstrap, 2, function(x) quantile(x, 0.975))[-3]
+    )
+  ) %>%
+  mutate(
+    ` ` = c("x-min (% of population)", "Slope", "Intercept", "Slope")
+  ) %>%
+  kable(
+    "latex",
+    caption = "Power-Law and Logistic Parameter Estimates",
+    digits = 3,
+    booktabs = T
+  ) %>%
+  group_rows("Power-Law", 1, 2) %>%
+  group_rows("Logistic", 3, 4) %>%
+  add_footnote("Inference done with 200 bootstrapped samples.",
+               "none") %>%
+  cat()
+
+```
+
+
+```{r}
+lgs <- function(x) 1 / (1 + exp(-x))
+dt.pl <- tibble(
+  x = sort(Data$deaths_pc),
+  p = PXx(sort(Data$deaths_pc)),
+  pmin = PXx(Data$deaths_pc)[Data$deaths_pc==pl.fit$estimate[1]],
+  pl = (pmin * ((x/pl.fit$estimate[1])^(-pl.fit$estimate[2] + 1)) - p)/p,
+  ll = (lgs(ll.fit$estimate[1] + ll.fit$estimate[2] * log(x)) - p)/p
+)
+dt.pl <- dt.pl[-c(1, nrow(dt.pl)),]
+library(geomtextpath)
+ggplot(dt.pl) +
+  aes(x = x*1000000000, y = pl) +
+  geom_textpath(
+    label = "Power-law",
+    hjust = 0,
+    text_smoothing = 50
+  ) +
+  geom_textpath(
+    aes(x*1000000000, ll),
+    label = "Logit",
+    linetype = 2,
+    hjust = 0,
+    text_smoothing = 50
+  ) +
+  scale_y_continuous(
+    labels = scales::percent
+  ) +
+  scale_x_log10(
+    labels = scales::comma
+  ) +
+  labs(
+    x = "Deaths per 100 million",
+    y = "(%) Prediction error",
+  )
+
+save_fig("fig2.png")
+```
+
+```{r}
+dt.pl <- tibble(
+  x = seq(0, 1, by = 0.01),#sort(Data$deaths_pc),
+  pmin = PXx(Data$deaths_pc)[Data$deaths_pc==pl.fit$estimate[1]],
+  pl = pmin * ((x/pl.fit$estimate[1])^(-pl.fit$estimate[2] + 1)),
+  ll = lgs(ll.fit$estimate[1] + ll.fit$estimate[2] * log(x))
+)
+dt.pl <- dt.pl[-c(nrow(dt.pl)),]
+we_all_dead <- dt.pl %>%
+  filter(x < 0.11, x > 0.09)
+
+1:nrow(pl.fit$bootstrap) %>%
+  map_dfr(
+    ~ {
+      tibble(
+        x = 1/10,
+        pl = ((x/pl.fit$bootstrap$xmin[.x])^(-pl.fit$bootstrap$beta[.x]+1)),
+        ll = lgs(ll.fit$bootstrap$intercept[.x] + 
+                   ll.fit$bootstrap$beta[.x] * log(x))
+      ) 
+    }
+  ) -> boot_preds
+
+boot_preds %>%
+  select(-1) %>%
+  pivot_longer(everything()) %>%
+  group_by(name) %>%
+  summarize(
+    lower = quantile(value, 0.025),
+    upper = quantile(value, 0.975)
+  ) %>%
+  ungroup %>%
+  mutate(
+    estimate = c(we_all_dead$ll, we_all_dead$pl)
+  ) %>%
+  ggplot() +
+  aes(
+    x = estimate,
+    xmin = lower,
+    xmax = upper,
+    y = name
+  ) +
+  geom_point() +
+  geom_errorbarh(height = 0) +
+  scale_x_continuous(
+    labels = scales::percent
+  ) +
+  scale_y_discrete(
+    labels = c("Logit", "Power-law")
+  ) +
+  labs(
+    x = "(%) likelihood 10% of the belligerent populations die in war",
+    y = NULL
+  )
+save_fig("fig3.png")
+```
+
+```{r}
+t <- seq(1, 105, by = 1)
+p1 <- 1 - pbinom(
+  1, t, we_all_dead$ll
+)
+p2 <- 1 - pbinom(
+  1, t, we_all_dead$pl
+)
+ggplot() +
+  geom_textpath(
+    aes(t * 200, p1),
+    label = "Logit",
+    linetype = 2,
+    linesize = 1,
+    hjust = 0.8,
+    vjust = 1.1
+  )+
+  geom_textpath(
+    aes(t * 200, p2),
+    label = "Power-law",
+    linetype = 1,
+    linesize = 1,
+    hjust = 0.8,
+    vjust = -.1
+  ) +
+  labs(
+    x = "Years",
+    y = NULL,
+    subtitle = "(%) cumulative likelihood of a war that kills 10%\nof the belligerent populations"
+  ) +
+  scale_x_continuous(
+    labels = scales::comma
+  ) +
+  scale_y_continuous(
+    labels = scales::percent
+  ) 
+save_fig("fig4.png")
+```
+
+```{r}
+t <- seq(1, 8000000, by = 100)
+p <- 1 - pbinom(1, t, we_all_dead$pl)
+max(p)
+```
+

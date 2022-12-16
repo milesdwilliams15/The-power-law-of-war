@@ -1,0 +1,33 @@
+---
+# title: "Untitled"
+# author: "Miles D. Williams"
+# date: '2022-12-16'
+output: pdf_document
+fontfamily: mathpazo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+To the Editorial Team at APSR,
+
+I wish to submit this original research note/letter entitled "Beyond the Power-Law of War: Why a Logistic Function of War's Deadliness is Better," for consideration by APSR.
+
+I can confirm that this work is original and has not been published elsewhere, nor is it being considered by another journal or publication.
+
+In this letter, I show that the power-law distribution can be a poor fit for war's deadliness. Instead, the distribution of war fatalities may be better approximated by a logistic model. This is demonstrated using data on war fatalities per capita for all major international wars fought between 1816 and 2007. 
+
+This finding is significant because the idea that war follows the power-law distribution has become ubiquitous to the study of conflict. The power-law has served as a framework for theory generation, inference, and hypothesis testing regarding war's intensity. That an easy to estimate alternative to the power-law exists should be welcome news. Future scholarship on conflict would benefit from an awareness of the logistic model's superior performance, at least with respect to major international wars from the last 200 years.
+
+This letter will be of general interest for APSR readers since the idea that war's deadliness follows a power-law distribution holds near law-like status, giving the idea a privilaged position among identified regularities in the social sciences. While this letter does not claim that the power-law is always an inappropriate choice for modeling war's deadliness, it does demonstrate that it need not be the only modeling choice, nor should it be regarded as necessarily the best.
+
+I have no conflicts of interest to disclose.
+
+Please address all correspondence to me at williamsmd@denison.edu
+
+Thank you for your consideration.
+
+Sincerely,
+
+Miles D. Williams, Ph.D. | Data for Political Research, Denison University

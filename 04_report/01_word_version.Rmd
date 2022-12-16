@@ -1,0 +1,501 @@
+---
+# title: "A Logistic Model of War Deaths is Better than the Power-Law"
+# author: "Miles D. Williams"
+# date: '2022-12-12'
+bibliography: ../05_ref/ref.bib
+editor_options: 
+  markdown: 
+    wrap: 72
+fontfamily: mathpazo
+fontsize: 12pt
+geometry: margin=1in
+header-includes:
+- \usepackage{float}
+- \usepackage{setspace}
+- \usepackage{dcolumn}
+- \doublespacing
+- \setlength\parindent{24pt}
+- \setlength\parskip{1pt}
+- \usepackage[group-separator={,}]{siunitx}
+- \usepackage{threeparttable}
+- \usepackage{caption}\DeclareCaptionLabelFormat{AppendixTables}{Table A.#2}
+- \usepackage{caption}\DeclareCaptionLabelFormat{AppendixFigures}{Figure A.#2}
+- \usepackage[labelsep=period]{caption}
+output:
+  word_document:
+    pandoc_args: 
+      - '--lua-filter=parse-latex.lua'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F,
+                      message = F,
+                      warning = F,
+                      fig.align = "center")
+library(knitr)
+library(here)
+```
+
+**Beyond the Power-Law of War: Why a Logistic Function of War's Deadliness is Better**
+
+**Author**: Miles D. Williams^[Denison University, williamsmd@denison.edu.]
+
+**Abstract**: The power-law specification of war deadliness is ubiquitous. In this study, an alternative logistic specification is proposed and shown to provide a superior fit for war fatality data and with greater statistical precision. Using Correlates of War data merged with estimates of country population totals, the relative intensity of major international wars fought between 1816 and 2007 are modeled using the power-law and logit. While the power-law only can be fit to data above a lower-bound of war intensity that requires dropping more than 50% of observations from the sample, the logistic model provides an excellent fit for all the data and with greater precision. Because the power-law specification of war intensity plays an essential role in theory generation, statistical inference, and hypothesis testing in the study of war, that an alternative specification exists that is both simple to estimate and that provides a superior fit should be welcome news.
+
+**Keywords**: Conflict, Power-Law, Logit
+
+**Word Count**: 4,145
+
+\clearpage
+
+## Introduction
+
+In the social sciences, few regularities attain law-like status. The
+idea that war deadliness follows a power-law distribution is one such
+regularity, and scholars have regarded it as such since its initial
+discovery earlier in the twentieth century [@richardson1948;
+@richardson1960]. The practical, as well as alarming, significance of
+war being power-law distributed has been addressed by numerous studies
+over the past 10 to 20 years, but the idea received more widespread
+popular attention than it had before with the publication of Bear
+Braumoeller's [-@braumoeller2019] book *Only the Dead*.
+
+The deadly potential of wars cannot be overstated, and the power-law
+distribution applied to estimate the range of probable war fatalities
+that belligerents suffer by war's end captures this well. However, the
+wisdom of fitting war death data to the power-law rather than some other
+distributional form is not always clear. A persistent practical reality
+that arises in Braumoeller's [-@braumoeller2019] efforts to fit war
+fatality data for all major wars fought over the last 200 years to the
+power-law distribution is the fact that the power-law only provides a
+good fit for the data above a lower bound. In many applied settings and
+across a range of phenomena that plausibly follow a power-law
+distribution, this fact is often treated as a minor hiccup that existing
+statistical procedures have been designed to address [@clausetEtAl2009].
+The solution entails identifying the lowest possible value of the
+variable in question such that all the data at or above this threshold
+conform to the power-law distribution. All data below this threshold are
+then ignored.
+
+The truncation of the data entailed by this solution is often
+nontrivial. It is not impossible to lose more than 50% of the data
+sample in an effort to make the data conform to the power-law
+distribution.[^1] If such a large portion of the data must be ignored in
+order to reliably fit the power-law to the data, it begs the question of
+whether we are trying to make a square peg fit into a round hole. Is the
+power-law really the best model of war intensity, or is there a better
+alternative?
+
+[^1]: Author's own analysis of Correlates of War (COW) data on war
+    fatalities from 1816 to 2010.
+
+The case is made here that the power-law *is not* the best fit for the
+data and that there *is a better alternative*. Using data on the
+intensity of major international wars from the past 200 years, a
+comparison of the power-law model and a logistic model demonstrates the
+superiority of the latter. The logistic model of war intensity not only
+provides a much better fit for *all* of the data, the efficiency of the
+logit model predictions is substantially higher than that of the
+power-law model predictions in the extreme tails of the distribution of
+war intensity. This finding has important implications for theory,
+statistical inference, and hypothesis testing with war intensity
+data[@braumoeller2019; @cederman2003; @friedman2014].
+
+The paper proceeds as follows. Motivation and background on modeling
+wars with the power-law is provided. This brief survey highlights the
+near ubiquity of the idea that war intensity is power-law distributed.
+With this ubiquity comes a number of implications for theory and
+measures that are predicated on the power-law being the best fit for war
+data.
+
+A summary of the power-law model of war intensity and an alternative
+logistic specification is then provided. A key difference in the two
+specifications is the choice to model war intensity in log-log space as
+probabilities versus odds. The latter may provide a better fit for the
+seemingly shallow change in the likelihood of observing wars deadlier
+than those observed among relatively low-intensity conflicts.
+
+The data used to compare the power-law and logistic modelling approaches
+is then summarized. Data on war fatalities are used from the Correlates
+of War (COW) Project. War intensity is calculated as the total battle
+deaths of all countries involved in a war per the combined population of
+the relevant countries at the time of the conflict.
+
+The results are then presented. Overall, the logistic model provides a
+superior fit for the data in contrast to the power-law. The implications
+are then discussed in the final section. While the power-law may apply
+in numerous settings, in the case of international wars it provides a
+poorer fit than many would suppose. In contrast to the power-law, the
+logistic model offers a better fit and with greater statistical
+precision. Future scholarship on war intensity would benefit from having
+the logistic specification in their toolbox.
+
+## Power-Laws and War Deaths
+
+The idea that war intensity---the deadliness of wars relative to the
+populations of the belligerent countries---is power-law distributed
+received widespread attention with the recent publication of
+Braumeoller's [-@braumoeller2019] *Only the Dead: The Persistence of War
+in the Modern Age*. However, the "discovery" that war deadliness follows
+the power-law is owed to Lewis F. Richardson [-@richardson1948;
+-@richardson1960]. The power-law of war intensity enjoys a privileged
+position as one of the few regularities in the social sciences granted
+law-like status. This is a status that few have found cause to question
+and for understandable reasons.
+
+War fatalities, after all, have a highly skewed distribution. While
+there are many wars in which few die, there are only a few wars in which
+many die. This is just the sort of pattern that power-law distributed
+data follow.
+
+In addition, power-law distributions have the unique (and convenient)
+characteristic of linearity when plotted in log-log space. The slope of
+the probability density distribution of a power-law over the range of
+possible intensity levels of some variable in log-log space lets one
+seamlessly map possible intensities to a specific probability of
+occurrence. In addition to making projections of intensity exceptionally
+easy, the method of estimating the relevant slope parameter has a simple
+closed-form solution.
+
+Taken together, the fact of war intensity's skewed distribution and the
+computational simplicity of the power-law make for a clear marriage of
+convenience. But there is also a rhetorical motivation for modeling war
+intensity with the power-law, upon which @braumoeller2019 capitalizes in
+his conclusions about war's deadly potential. A feature of power-laws is
+that if the slope parameter is at or less than 2 the mean of the
+variable in question becomes infinity. An infinite mean implies that
+there is no upper limit on intensity (at least none that is
+mathematically identifiable), making random variation in war fatalities
+all the more alarming. As it turns out, in Braumeoller's analysis, the
+estimated power-law slope for war intensity is well below 2, implying
+that war intensity can reach extremes far greater than even some of the
+most volatile phenomena in the physical world such as fluid turbulence
+or thermal spikes on the sun.
+
+Braumoeller's is not the first attempt to model war intensity with the
+power-law since @richardson1948. @cederman2003 predicated an agent-based
+model of war on the stylized fact that the most intense wars conform to
+the power-law. This stylized fact was supported by the same Correlates
+of War (COW) data that Braumoeller would later use (albeit, an older
+edition). @cioffirevillaEtAl2010 conducted the first systematic
+replication of Richardson's[-@richardson1948; @richardson1960] analysis,
+using the most up-to-date COW data on international conflicts and
+extending the analysis to civil wars as well. They also fit war onset
+and duration to the power-law, expanding the range of war's
+characteristics that plausibly conform to the power-law distribution.
+
+The ubiquity of war's power-law properties is not only a bit of trivia,
+but it serves as a framework for inference and hypothesis testing.
+@cedermanEtAl2011 collect data on the fatalities in major power wars
+since 1495 and fit the data to the power-law using different successive
+splits in the sample to identify a significant shift in war deadliness
+following the Napoleonic Wars. @braumoeller2019 fits COW fatality data
+to the power-law to test the claim from the "decline of war" theory that
+conflicts have become less intense over time. Braumoeller develops a
+statistical procedure for testing whether two power-law fits are
+identified from different samples and finds that no significant change
+in war's deadliness has occurred since 1816. Beyond inference for
+hypothesis testing, @friedman2014 leverages the power-law to make
+inferences about unobserved fatalities in Native American and US
+conflicts from 1776 to 1890.
+
+In sum, the power-law model of war intensity has several practical uses
+for scholars. These include theory generation, statistical inference,
+and hypothesis testing. A lot therefore rides on the appropriateness of
+the fit between observed war intensity and the power-law, and a
+substantial mismatch could raise questions about the reliability of
+analyses that use the approach.
+
+## A Power-Law or Logistic Model of War Intesnity?
+
+The power-law reigns supreme, in part, because of the preoccupation with
+modelling the extreme ends of the distribution of war intensity. War is
+scary, but the idea that little but chance prevents any war from
+escalating into the next world war (or worse) grips the imagination in a
+visceral way. However, the focus on the thick tail of the distribution
+of wars has led to the neglect of the other end of the distribution.
+@braumoeller2019, for example, uses a procedure outlined by
+@clausetEtAl2009 for fitting a power-law model to data that involves
+identifying a lower bound beyond which the data conform well to the
+power-law, but below which the data do not.
+
+This procedure has a practical purpose. Rarely do observed data
+perfectly conform to our theoretical models of their generation, and the
+need to identify a lower bound reflects this reality. But at what point
+does this necessary concession to make the model fit data slip into an
+effort to make the data fit the model? As will be shown in the
+subsequent analysis, the lower bound required to make the power-law fit
+war intensity data leaves the intensity of more than half of the major
+wars that occurred over the last 200 years unexplained. If nearly half
+of the data fail to conform to a particular data-generating process, it
+is worth asking whether a different model is more appropriate.
+
+This section discusses the technical details of the power-law model and
+contrasts it with a proposed alternative: a logistic model of war
+intensity. This model has the potential to better fit not only the
+observations in the extreme tail of the distribution but also the less
+extreme (and thus more common) war intensities on the left side of the
+distribution that fitting the power-law to the data requires we ignore.
+
+First, consider the power-law model of war deaths. The power-law
+specifies that the probability of observing a war deadlier than some
+value $x > 0$ is $$
+\Pr(X > x) = \frac{\exp(\alpha)} {x^{\beta}} \quad \forall \quad x \geqslant x_{min} \tag{1}
+$$ where $x_{min}$ is a lower bound such that $x$ follows a power-law
+distribution to the degree $\beta > 0$ and $\alpha$ is a constant.
+Expressed in log-log space, this is $$
+\log[\Pr(X > 0)] = \alpha - \beta \log(x) \quad \forall \quad x \geqslant x_{min} \tag{2}
+$$A convenient feature of the power-law distribution is $\beta$ has a
+closed-form solution. The maximum likelihood estimator for the slope
+$\beta$ is estimated as: $$
+\hat \beta = 1 + n / \sum_{i = 1}^n \log(x_i/x_{min}), \tag{3}
+$$where $n > 0$ is the number of observations such that
+$x \geqslant x_{min}$ where $i$ denotes the first element in this
+vector.
+
+While the solution for $\beta$ is simple enough, its appropriateness
+depends on identifying the best $x_{min}$. Calculating $x_{min}$
+requires a more involved process. We start by choosing different values
+in $x$ to serve as $x_{min}$ and estimating a new $\beta$ per each
+iteration. Then, for each iteration, we use a Kolmogorov-Smirnov test to
+assess the fit between the model and the data. The $x_{min}$ that
+provides the best fit is then selected.[^2]
+
+[^2]: See @clausetEtAl2009 for a summary of the procedure.
+
+This approach is applied by @braumoeller2019 and others; however, the
+idea that there is a minimum threshold beyond which the power-law
+distribution obtains is predicated on the idea that the power-law really
+is the most appropriate model of the data. But the lack of perfect
+linearity between all $x$ and $\Pr(X > x)$ in log-log space may actually
+be a sign of poor specification. Other functional forms may make for a
+better fit for *all* the data---not just those beyond a lower bound.
+
+The logistic model is one such alternative that may be ideally suited to
+handle the shallow-sloped distribution of war deaths below $x_{min}$.
+Unlike equation (1), the logit model is specified as$$
+\text{Odds}(X > x) = \frac{\Pr(X > x)}{1 - \Pr(X > x)} = \frac{\exp(\alpha)}{x^\beta}. \tag{4}
+$$This can be expressed linearly as$$
+\log[\text{Odds}(X > x)] = \alpha - \beta \log(x). \tag{5}
+$$The idea with the logit specification is that the left-hand side of
+the equation is better modeled as the log of the *odds* of observing a
+war deadlier than $x$ than as the log of the *probability*. With this
+form, the solutions for the intercept $\alpha$ and $\beta$ can be
+identified using the logit maximum likelihood estimator.
+
+A nice feature of the logistic model is that the relevant slope
+parameter can be interpreted as an elasticity. The parameter $\beta$
+reflects a percent change in the odds of a war deadlier than the one
+observed per a percent change in war intensity.
+
+Importantly, while the solutions for the relevant parameters of the
+power-law and logit models of war deadliness are quite easy, inference
+cannot be performed directly in either case. A tidy asymptotically
+derived solution for the variance in model parameters does not exist, so
+we instead need to use bootstrapping. Previous studies failed to be
+attentive to this fact, and @braumoeller2019 was the first to develop
+the approach.
+
+The need for bootstrapping follows from the simple fact that estimation
+of the relevant parameters depends on the empirical CDF of war
+intensities, which is where much of the uncertainty in estimation comes
+from. Neither the closed-form power-law solution, nor the logit maximum
+likelihood estimator, take this uncertainty into account. The logit
+standard errors, for example, would be far too narrow and thus lack
+appropriate coverage. By bootstrapping the empirical sampling
+distribution, this problem can be easily avoided.
+
+## Data
+
+To compare the logistic and power-law specifications for war intensity I
+use a measure of total battle related deaths per capita of major
+international wars from 1816 to 2007. I accessed the data using the
+newly available `{peacesciencer}` R package which provides users access
+to a wide range of datasets relevant to the study of conflict
+[@peacesciencer-package]. Data on war deaths originated from the
+Correlates of War Project's 4.0 data [@sarkeeswayman2010rw]. To ensure
+that the measure reflects the relative intensity of wars, total battle
+deaths were divided by the summed population of the countries involved
+in fighting a given war. Estimates of country population data originated
+from @andersetal2020bbgb.
+
+The raw data was originally at the level of directed dyad-years. Before
+analysis, the data were collapsed to the level of individual wars so
+that each unit of observation was a unique war and the variable of
+interest the total battle deaths per the populations of the countries
+involved in the war. After aggregation, there were a total of 95 unique
+observations. Total battle related deaths ranged from 2,000 to more than
+134 million, with the median number of fatalities clocking in at just
+over 20 thousand.
+
+## Results
+
+The results from comparing the power-law and logistic fits for war
+intensity provide good evidence to favor the logistic specification over
+the power-law. While the thick tailed predictions of both the logit and
+power-law estimators are quite similar, the logistic model of war also
+provides a good fit for smaller wars which the power-law fit is not
+equipped to explain. Even more, because the logistic model can leverage
+more information in the data, the efficiency of the logit model
+predictions is substantially higher than that of the power-law model.
+
+Figure 1 shows a scatter plot of the probability of observing a war as
+deadly as that observed in both log-log space and in logit-log space.
+Both the left and right panels show the log of per capital battle deaths
+along the x-axis. In the left panel the y-axis shows the log of the
+*probability* of a war deadlier than the one observed, and in the right
+panel the y-axis shows the log of the *odds* of observing a war deadlier
+than the one observed. Each panel includes the estimated model fit for
+the power-law and logit specifications, respectively. In the case of the
+power-law fit, the regression line has slope $\beta_{pl} = 1.66$ for
+observations past the lower bound $x_{min}$. For the logit fit, the
+regression slope is $\beta_{lg} = -0.74$.[^3] Table 1 provides a summary
+of the estimates along with their bootstrapped credible intervals.
+
+[^3]: The power-law parameter is positive and the logit parameter
+    negative simply due to the method of estimation. The linear
+    relationships they correspond with in log-log space are both
+    negative since the likelihood of ever deadlier conflicts is
+    decreasing in war intensity.
+
+```{=tex}
+\begin{table}
+
+\caption{Power-Law and Logistic Parameter Estimates}
+\centering
+\begin{tabular}[t]{lrrr}
+\hline
+  & Estimate & Lower & Upper\\
+\hline
+\multicolumn{4}{l}{\textbf{Power-Law}}\\
+\hspace{1em}x-min (\% of population) & 0.025 & 0.002 & 0.156\\
+\hspace{1em}Slope & 1.657 & 1.408 & 2.097\\
+\multicolumn{4}{l}{\textbf{Logistic}}\\
+\hspace{1em}Intercept & -6.452 & -7.571 & -5.566\\
+\hspace{1em}Slope & -0.739 & -0.850 & -0.636\\
+\hline
+\multicolumn{4}{l}{\textsuperscript{} Inference done with 200 bootstrapped samples.}\\
+\end{tabular}
+\end{table}
+```
+
+At face value, the power-law specification provides a good fit for the
+data past the lower bound. But, the loss of war deaths data with the
+power-law fit is quite substantial with only less than 50% of all wars
+providing the information necessary to model the probability of ever
+deadlier conflicts. As is evident from Figure 1, the implication is that
+the power-law model is not equipped to explain or predict the likelihood
+of war deaths in the the remaining lower half of the sample.
+
+While the power-law model poorly fits half the sample, the logit model
+provides an excellent fit for the *entire* sample. Across the range of
+observed war deaths, the odds of observing a war deadlier than the one
+observed appears to be well approximated by a linear function of the
+observed magnitude of war deaths in log-log space. In fact, most
+researchers would be fortunate to observe a linear fit a fraction as
+tight as the one observed in Figure 1.
+
+```{r, fig.cap="Empirical probability of wars as deadly as those observed in log-log space (left) and logit-log space (right). The latter provides a better fit for all the data while the former requires ignoring observations below a certain threshold."}
+include_graphics(
+  here("02_figs", "fig1.png")
+)
+```
+
+The problem of data fit with the power-law model becomes all the more
+evident with Figure 2. The x-axis shows the log of war deaths per 100
+million, and the y-axis shows the percent error in model fit relative to
+the data. The solid line shows the error with the power-law model, and
+the dashed line shows the error with the logit model. Positive values
+mean that the model *overestimates* the probability of a war as deadly
+as the one observed, while negative values mean that the model
+*underestimates* the probability of a war as deadly as the one observed.
+
+The difference in model fit for smaller wars shines through. The
+power-law model is poorly suited to predicting the probability of war
+deaths around and below 100 thousand per 100 million in population size.
+These are quite deadly conflicts, making the poor fit of the power-law
+model for these observations all-the-more consequential. Compare these
+poor predictions with the far superior ones of the logit model. While
+both models make for nearly identical (and good) fits for the data for
+wars that kill beyond 100 thousand per 100 million in population size,
+the logit model provides an exceptionally better fit for smaller wars as
+well.
+
+```{r, fig.cap="The percent error in model fit relative to the data."}
+include_graphics(
+  here("02_figs", "fig2.png")
+)
+```
+
+The limitations of the power-law fit go beyond prediction error for
+smaller conflicts. While the logit and power-law models yield similar
+predictions for war deaths beyond the fitted power-law's lower bound,
+the power-law model only does so with less precision than the logit
+model. Further, the reduced precision of the power-law fit is far from
+trivial.
+
+Figure 3 shows the point-estimate of the power-law and logit model
+predictions of the likelihood of observing a war that kills more than
+10% of the belligerent country populations---a truly deadly conflict.
+The x-axis shows the probability in percentages and the y-axis denotes
+the respective model that generated the prediction. The 2.5 and 97.5
+percentiles of the bootstrapped empirical sampling distribution of
+predictions are included.
+
+The point predictions generated by each model are nearly identical. Each
+says that the likelihood of a war that kills more than 10 percent of the
+populations of the countries fighting a war is just less than 1%.
+However, while the predictions are nearly identical, the logit model
+provides more than double the precision than the power-law model. While
+the upper bound on the bootstrapped 95% confidence interval for the
+power-law prediction is just below 5%, the upper bound for the logit
+prediction is well under 2%.
+
+```{r, fig.cap="Comparison of power-law and logit model predictions of the probability that wars kill more than 10 percent of belligerent country populations."}
+include_graphics(
+  here("02_figs", "fig3.png")
+)
+```
+
+## Discussion and Conclusion
+
+The idea that war's deadliness is power-law distributed has gained
+wide-spread acceptance. Yet, the power-law is not the only possible
+data-generating process that can be used to model war intensity. As this
+study shows, it may not even be the best. When compared head to head,
+the logistic model of war intensity performs much better than the
+power-law. It provides a solid fit for the entire distribution of
+intensities of international wars that have been fought for the past 200
+years, not just the most extreme 50%. Further, the logistic model
+provides nearly identical probability estimates of varying war
+intensities to the power-law model in the extreme tails of the
+distribution, but it does so with more than twice the statistical
+precision.
+
+These findings have important theoretical and practical implications for
+the study of war. The idea that war deaths follow a power-law
+distribution is not merely a matter of trivia but also a basis for
+theory generation, statistical inference, and hypothesis testing
+[@braumoeller2019; @cederman2003; @cedermanEtAl2011;
+@cioffirevillaEtAl2010; @friedman2014]. Mispecification is therefore not
+just matter of getting the data-generating process of war intensity
+right. It is also about providing the best framework for theorizing
+about war's microfoundations, identifying whether significant shifts in
+intensity have occurred over time, or whether we can reliably infer war
+fatalities where we otherwise lack the objective data to do so.
+
+The results from this study will hopefully ensure that future
+scholarship does not proceed as though only one model of war intensity
+will do. The power-law may certainly be a good fit for some phenomena,
+and even for some dimensions of international conflict other than
+intensity (like duration or onset). Analysis of the wider array of war's
+characteristics is beyond the scope of this research note. Nonetheless,
+it is important that scholars are aware that there are alternative
+models of war characteristics, with the logistic model serving as one
+excellent choice---to this author's knowledge, one that has not been
+applied. There is no point trying to make a square peg fit into a round
+hole if we know a round peg is within reach.
+
+\clearpage
+
+## References

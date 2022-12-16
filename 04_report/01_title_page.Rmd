@@ -1,0 +1,22 @@
+---
+# title: "Beyond the Power-Law of War: Why a Logistic Function of War's Deadliness is Better"
+# author: "Miles D. Williams"
+# date: '2022-12-15'
+output: pdf_document
+fontfamily: mathpazo,
+fontsize: 12pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Beyond the Power-Law of War: Why a Logistic Function of War's Deadliness is Better**
+
+**Author**: Miles D. Williams^[Denison University, williamsmd@denison.edu.]
+
+**Abstract**: The power-law specification of war deadliness is ubiquitous. In this study, an alternative logistic specification is proposed and shown to provide a superior fit for war fatality data and with greater statistical precision. Using Correlates of War data merged with estimates of country population totals, the relative intensity of major international wars fought between 1816 and 2007 are modeled using the power-law and logit. While the power-law only can be fit to data above a lower-bound of war intensity that requires dropping more than 50% of observations from the sample, the logistic model provides an excellent fit for all the data and with greater precision. Because the power-law specification of war intensity plays an essential role in theory generation, statistical inference, and hypothesis testing in the study of war, that an alternative specification exists that is both simple to estimate and that provides a superior fit should be welcome news.
+
+**Keywords**: Conflict, Power-Law, Logit
+
+**Word Count**: 4,077
