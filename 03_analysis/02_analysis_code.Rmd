@@ -94,27 +94,37 @@ p1 <- ggplot(Data) +
   labs(
     x = "War Deaths per Capita (log)",
     y = "log[Pr(X > x)]",
-    subtitle = "Power-law model of war deaths"
+    subtitle = "Power-law fit to war deaths"
   )
-p2 <- ggplot(Data) +
-  aes(x = log(deaths_pc),
-      y = logit(PXx(deaths_pc))) +
+obs.x <- Data$deaths_pc
+new.x <- exp(seq(min(log(obs.x)), max(log(obs.x)), len = 200))
+mu.x  <- mean(log(obs.x))
+sd.x  <- sd(log(obs.x))
+dens <- 1 - pnorm(q = log(new.x), mean = mu.x, sd = sd.x)
+p2 <- ggplot() +
   geom_point(
+    data = Data,
+    aes(x = log(deaths_pc),
+       y = log(PXx(deaths_pc))),
     color = qual[3]
   ) +
-  geom_smooth(
-    method = "lm",
-    se = F,
+  geom_line(
+    data = NULL,
+    aes(
+      x = log(new.x),
+      y = log(dens)
+    ),
+    size = 1,
     color = qual[4]
   ) +
   labs(
     x = "War Deaths per Capita (log)",
-    y = "logit[Pr(X > x)]",
-    subtitle = "Log-logistic model of war deaths"
+    y = "log[Pr(X > x)]",
+    subtitle = "Log-normal fit to war deaths"
   )
 p1 + p2 +
   plot_annotation(
-    title = "Power-law or Logit?"
+    title = "Power-law or Log-normal?"
   )
 save_fig("fig1.png")
 ```
@@ -122,11 +132,13 @@ save_fig("fig1.png")
 
 ```{r}
 pl.fit <- pl(Data$deaths_pc)
-ll.fit <- ll(Data$deaths_pc)
+ln.fit <- ln(Data$deaths_pc)
 pl.fit$estimate[1] <- (100 * pl.fit$estimate[1])
 pl.fit$bootstrap$xmin <- (100 * pl.fit$bootstrap$xmin)
+ln.fit$estimate[1] <- 100 * exp(ln.fit$estimate[1])
+ln.fit$bootstrap$mu <- 100 * exp(ln.fit$bootstrap$mu)
 library(kableExtra)
-list(pl.fit, ll.fit) %>%
+list(pl.fit, ln.fit) %>%
   map_dfr(
     ~ tibble(
       " " = names(.x$estimate),
@@ -136,16 +148,16 @@ list(pl.fit, ll.fit) %>%
     )
   ) %>%
   mutate(
-    ` ` = c("x-min (% of population)", "Slope", "Intercept", "Slope")
+    ` ` = c("x-min (% of population)", "beta", "mu", "sigma")
   ) %>%
   kable(
     "latex",
-    caption = "Power-Law and Logistic Parameter Estimates",
+    caption = "Power-Law and Log-normal Parameter Estimates",
     digits = 3,
     booktabs = T
   ) %>%
   group_rows("Power-Law", 1, 2) %>%
-  group_rows("Logistic", 3, 4) %>%
+  group_rows("Log-normal", 3, 4) %>%
   add_footnote("Inference done with 200 bootstrapped samples.",
                "none") %>%
   cat()
@@ -154,15 +166,12 @@ list(pl.fit, ll.fit) %>%
 
 
 ```{r}
-pl.fit <- pl(Data$deaths_pc)
-ll.fit <- ll(Data$deaths_pc)
-lgs <- function(x) 1 / (1 + exp(-x))
 dt.pl <- tibble(
   x = sort(Data$deaths_pc),
   p = PXx(sort(Data$deaths_pc)),
-  pmin = PXx(Data$deaths_pc)[Data$deaths_pc==pl.fit$estimate[1]],
-  pl = (pmin * ((x/pl.fit$estimate[1])^(-pl.fit$estimate[2] + 1)) - p)/p,
-  ll = (lgs(ll.fit$estimate[1] + ll.fit$estimate[2] * log(x)) - p)/p
+  pmin = PXx(Data$deaths_pc)[Data$deaths_pc==(pl.fit$estimate[1]/100)],
+  pl = (pmin * ((x/(pl.fit$estimate[1]/100))^(-pl.fit$estimate[2] + 1)) - p)/p,
+  ll = ((1 - pnorm(log(x), log(ln.fit$estimate[1]/100), ln.fit$estimate[2])) - p)/p
 )
 dt.pl <- dt.pl[-c(1, nrow(dt.pl)),]
 library(geomtextpath)
@@ -175,7 +184,7 @@ ggplot(dt.pl) +
   ) +
   geom_textpath(
     aes(x*1000000000, ll),
-    label = "Log-logistic",
+    label = "Log-normal",
     linetype = 2,
     hjust = 0,
     text_smoothing = 50
@@ -194,12 +203,49 @@ ggplot(dt.pl) +
 save_fig("fig2.png")
 ```
 
+
+```{r}
+data <- round(100000000 * Data$deaths_pc)
+data_pl <- displ$new(data) #creating a power-law object from data
+est <- estimate_xmin(data_pl)
+data_pl$xmin <- est$xmin
+data_pl$pars <- est$pars
+est$KS #exactly the same KS statistic resulted of power.law.fit
+ 
+
+data_alt <- dislnorm$new(data) #creating a log-normal object
+data_alt$xmin <- est$xmin
+data_alt$pars <- estimate_pars(data_alt)
+comp <- compare_distributions(data_pl, data_alt) #comparing alternatives
+comp$test_statistic #as comp$test_statistic returned a negative value,
+#data_alt is a better fit than data_pl
+shapiro.test(log(data))
+
+# sim some pl data based on pl parameter fits
+replicate(
+  200,
+  {
+    sim.x <- rpldis(n = 95, xmin = pl.fit$estimate[1]*100, alpha = pl.fit$estimate[2])
+    list(shapiro.test(sim.x))
+  }
+) -> out.sim
+map_dfr(
+  out.sim,
+  ~ tibble(p.value = .x$p.value)
+) -> p.sim
+hist(p.sim$p.value)
+c(median = median(p.sim$p.value),
+  min. = min(p.sim$p.value),
+  max. = max(p.sim$p.value))
+```
+
+
 ```{r}
 dt.pl <- tibble(
   x = seq(0, 1, by = 0.01),#sort(Data$deaths_pc),
-  pmin = PXx(Data$deaths_pc)[Data$deaths_pc==pl.fit$estimate[1]],
-  pl = pmin * ((x/pl.fit$estimate[1])^(-pl.fit$estimate[2] + 1)),
-  ll = lgs(ll.fit$estimate[1] + ll.fit$estimate[2] * log(x))
+  pmin = PXx(Data$deaths_pc)[Data$deaths_pc==(pl.fit$estimate[1]/100)],
+  pl = pmin * ((x/(pl.fit$estimate[1]/100))^(-pl.fit$estimate[2] + 1)),
+  ll = 1 - pnorm(log(x), log(ln.fit$estimate[1]/100), ln.fit$estimate[2])
 )
 dt.pl <- dt.pl[-c(nrow(dt.pl)),]
 we_all_dead <- dt.pl %>%
@@ -210,9 +256,9 @@ we_all_dead <- dt.pl %>%
     ~ {
       tibble(
         x = 1/10,
-        pl = ((x/pl.fit$bootstrap$xmin[.x])^(-pl.fit$bootstrap$beta[.x]+1)),
-        ll = lgs(ll.fit$bootstrap$intercept[.x] + 
-                   ll.fit$bootstrap$beta[.x] * log(x))
+        pl = ((x/(pl.fit$bootstrap$xmin[.x]/100))^(-pl.fit$bootstrap$beta[.x]+1)),
+        ll = 1 - pnorm(log(x), log(ln.fit$bootstrap$mu[.x]/100),
+                       ln.fit$bootstrap$sigma[.x])
       ) 
     }
   ) -> boot_preds
@@ -242,7 +288,7 @@ boot_preds %>%
     labels = scales::percent
   ) +
   scale_y_discrete(
-    labels = c("Log-logistic", "Power-law")
+    labels = c("Log-normal", "Power-law")
   ) +
   labs(
     x = "(%) likelihood 10% of the belligerent populations die in war",

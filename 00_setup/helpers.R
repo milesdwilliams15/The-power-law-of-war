@@ -85,5 +85,33 @@ ll <- function(x, R = 200) {
   )
 }
 
+# log-normal --------------------------------------------------------------
+
+ln.est <- function(x) {
+  data <- data.frame(x = log(x)) %>%
+    filter(x != -Inf & x != Inf)
+  out <- c(mean(data$x, na.rm=T), sd(data$x, na.rm=T))
+  names(out) <- c("mu", "sigma")
+  out
+}
+
+ln.boot <- function(x, R) {
+  replicate(
+    n = R,
+    list(ln.est(sample(x, length(x), T)))
+  ) -> out
+  bind_rows(out) %>%
+    mutate(rep = 1:n())
+}
+
+ln <- function(x, R = 200) {
+  est <- ln.est(x)
+  boot <- ln.boot(x, R = R)
+  list(
+    estimate = est,
+    bootstrap = boot
+  )
+}
+
 # compare -----------------------------------------------------------------
 
