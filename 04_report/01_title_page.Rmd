@@ -11,12 +11,14 @@ fontsize: 12pt
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-**Beyond the Power-Law of War: Why a Logistic Function of War's Deadliness is Better**
+\thispagestyle{empty}
 
-**Author**: Miles D. Williams^[Denison University, williamsmd@denison.edu.]
+# Is the Power-Law Really the Law of War?
 
-**Abstract**: The power-law specification of war deadliness is ubiquitous. In this study, an alternative log-logistic specification is proposed and shown to provide a superior fit for war fatality data and with greater statistical precision. Using Correlates of War data merged with estimates of country population totals, the relative intensity of major international wars fought between 1816 and 2007 are modeled with each specification. While the power-law only can be fit to data above a lower-bound of war intensity that requires dropping more than 50% of observations from the sample, the log-logistic model provides an excellent fit for all the data and with greater precision. Because the power-law specification of war intensity plays an essential role in theory generation, statistical inference, and hypothesis testing in the study of war, that an alternative specification exists that is both simple to estimate and that provides a superior fit should be welcome news.
+Miles D. Williams^[Denison University, `williamsmd@denison.edu`.]
 
-**Keywords**: Conflict, Power-Law, Logit
+**Abstract**: The power-law specification of war deadliness is ubiquitous. This study shows instead that the log-logistic distribution provides a superior fit for war fatality data and that its use yields conflicting inferences about whether a decline in war's intensity occurred in the mid-twentieth century. Using Correlates of War data merged with estimates of country population totals, the relative intensity of major international wars fought between 1816 and 2007 are modeled with each specification. The log-logistic fit accounts for more than twice the variation in the data and provides more efficient predictions of both moderate and extreme war intensities. This calls for a reevaluation of the unqualified use of the power-law in the study of war.
 
-**Word Count**: 4,257
+**Keywords**: Conflict, Methods, Power-law, Log-logistic
+
+**Word Count**: `r scales::comma(wordcountaddin::word_count("01_manuscript.Rmd"))`

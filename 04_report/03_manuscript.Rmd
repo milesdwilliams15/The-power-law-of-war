@@ -1,0 +1,302 @@
+---
+output: 
+  stevetemplates::article:
+    fig_caption: true
+#bibliography: master.bib
+biblio-style: apsr
+title: "Normalizing War"
+thanks: "Replication files are available on the author's Github account (http://github.com/milesdwilliams15). **Current version**: `r format(Sys.time(), '%B %d, %Y')`; **Corresponding author**: williamsmd@denison.edu."
+author:
+- name: Miles D. Williams
+  affiliation: Denison University
+abstract: "This document provides an introduction to R Markdown, argues for its benefits, and presents a sample manuscript template intended for an academic audience. I include basic syntax to R Markdown and a minimal working example of how the analysis itself can be conducted within R with the `knitr` package."
+keywords: "pandoc, r markdown, knitr"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+geometry: margin=1in
+fontfamily: mathpazo
+fontsize: 12pt
+spacing: double
+endnote: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=F,
+                      message=FALSE, warning=FALSE,
+                      echo = F,
+                      fig.path='figs/',
+                      cache.path = '_cache/',
+                      fig.process = function(x) {
+                      x2 = sub('-\\d+([.][a-z]+)$', '\\1', x)
+                      if (file.rename(x, x2)) x2 else x
+                      })
+library(tidyverse)
+library(estimatr)
+library(poweRlaw)
+library(texreg)
+library(kableExtra)
+library(patchwork)
+library(coolorrr)
+set_theme()
+set_palette()
+dt <- read_csv(
+  here::here("01_data", "war-year.csv")
+)
+```
+
+
+# Introduction
+
+How should we best model the deadliness of international war?\footnote{"War" and "international war" are used interchangeably throughout the paper.} The prevailing wisdom holds that war deaths follow the power-law, a distributional form characterizing phenomena with many small events but a few very extreme ones. This view, however, is more often assumed than formally tested. This study conducts a formal test of war's correspondence with the power-law versus a plausible alternative: the log-normal. 
+
+Analysis of per capita battle deaths from 95 international wars fought between 1816 and 2007 shows that neither the power-law nor the log-normal distribution can be rejected as a good fit for the data. Further, in a head-to-head test, one is not found to be statistically better than the other. 
+
+However, the choice of distribution does substantially alter conclusions drawn about international war. Past research has sought to identify whether the so-called "long peace" in the second half of the 20th century reflects a statistically detectable change in the trend of war's deadliness. Past research has yielded conflicting results. Much of the disagreement may have to do with the way war deaths are differently modeled across studies. Using the 1950 change point recently identified by X, the statistical significance of pre- and post-1950 differences in war deaths is tested using both power-law and log-normal fits for the data. 
+
+The choice of model is found to influence conclusions. While a statistically significant difference is detected using a log-normal fit, no such difference is detected using the power-law. This raises questions that need to be addressed in future research. That model choice substantively influences conclusions from statistical inference points to a major limitation in current quantitative study of war fatalities. Unfortunately, 95 wars may not be enough points of observation to resolve this issue. Until more data become available, we are left with little formal justification for favoring one distributional form over the other.
+
+Even so, there is some informal justifications for favoring the log-normal distribution. The first deals with data loss. Using the power-law requires truncating the data to only the top 45 most extreme wars in order to best fit the most extreme tail of the distribution. The log-normal distribution provides a good fit both for those more extreme wars and also for the remaining, more modest sized wars in the data. By avoiding data loss, this improves statistical power supporting sharper statistical inferences.
+
+Second, the log-normal model is consistent with the use of regression analysis tools available with nearly all popular statistical packages and software. If war deaths are treated as log-normal, this makes it possible to analyze war deaths as a function of different covariates to see how the characteristics of countries fighting wars may influence how deadly wars can become. X have recently attempted this by parameterizing the mean of the inverse-Burr distribution using average Polity 2 scores among the countries fighting a given war. 
+
+
+```{r fig.cap="The distribution of battle deaths per belligerent populations in millions for all international wars, 1816-2007.", fig.height=3, fig.width=6}
+p1 <- ggplot(dt) +
+  aes(batdeathpc * 1000000) +
+  geom_histogram(fill = "lightgray", color = "black") +
+  scale_x_continuous(
+    labels = scales::comma
+  ) +
+  labs(
+    x = "Battle Deaths per 1 million",
+    y = "Frequency",
+    title = "Unadjusted"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+p2 <- p1 +
+  scale_x_log10(
+    labels = scales::comma
+  ) +
+  labs(
+    title = "Log-10 Scale"
+  )
+p1 + p2
+```
+
+
+The software package developed by [x] makes it possible to test and compare four different distributional forms for continuous data.
+
+
+```{r fig.cap="Comparison of the power-law and log-normal fits for the data."}
+x <- dt$batdeathpc
+m_pl <- conpl$new(x)
+m_ln <- conlnorm$new(x)
+m_pl$setXmin(estimate_xmin(m_pl))
+m_ln$setPars(estimate_pars(m_ln))
+plot(m_pl, pch = 19, col = "gray",
+     ylab = "Pr(X > x) log-scale",
+     xlab = "Battle Deaths")
+lines(m_pl, lty = 2, col = "darkblue")
+lines(m_ln, col = "darkred")
+legend(
+  "topright",
+  lty = c(2, 1),
+  col = c("darkblue", "darkred"),
+  legend = c("Power-law", "Log-normal")
+)
+```
+
+
+
+```{r}
+## Okay, let's start here:
+## 1. can we reject the power-law distribution?
+pl_p <- bootstrap_p(m_pl)$p
+## 2. can power-law be favored over log-normal?
+m_ln2 <- m_ln
+m_ln2$setXmin(m_pl$xmin)
+cp_d <- compare_distributions(m_pl, m_ln2)
+## 3. can we reject the log-normal distribution
+tibble(
+  its = 1:1000,
+  sim_data = map(its, ~ tibble(
+    x = rnorm(nrow(dt),m_ln$pars[1],m_ln$pars[2])
+  )),
+  boot_D = map(
+    sim_data,
+    ~ ks.test(
+      x = .x$x,
+      "pnorm",
+      mean = m_ln$pars[1],
+      sd = m_ln$pars[2]
+    )$statistic
+  ) |> unlist(),
+  obs_D = ks.test(
+    x = log(dt$batdeathpc),
+    "pnorm",
+    mean = m_ln$pars[1],
+    sd = m_ln$pars[2]
+  )$statistic
+) -> ln_boot_out
+ln_p <- mean(ln_boot_out$boot_D > 
+               ln_boot_out$obs_D)
+tibble(
+  Hypotheses = c(
+    "Can we reject the power-law?",
+    "Can we reject the log-normal?",
+    "Can we favor one over the other?"
+  ),
+  "p-value" = c(
+    pl_p,
+    ln_p,
+    cp_d$p_two_sided
+  ) |>
+    round(3)
+) |>
+  kbl(
+    caption = "KS-test results",
+    booktabs = T,
+    linesep = ""
+  )
+```
+
+
+```{r}
+## Does the choice of distribution shape inferences?
+pl_slope <- function(x) {
+  m <- conpl$new(x)
+  m$setXmin(estimate_xmin(m))
+  m$pars
+}
+ln_mean <- function(x) {
+  m <- conlnorm$new(x)
+  m$setPars(estimate_pars(m))
+  m$pars[1]
+}
+tibble(
+  its = 1:100,
+  boot_data_pre = map(
+    its,
+    ~ sample_n(
+      dt |> filter(year <= 1950),
+      size = nrow(dt),
+      replace = T
+    )
+  ),
+  boot_data_post = map(
+    its,
+    ~ sample_n(
+      dt |> filter(year > 1950),
+      size = nrow(dt),
+      replace = T
+    )
+  ),
+  pl_slope_pre = map(
+    boot_data_pre,
+    ~ pl_slope(.x$batdeathpc)
+  ),
+  pl_slope_post = map(
+    boot_data_post,
+    ~ pl_slope(.x$batdeathpc)
+  ),
+  ln_mean_pre = map(
+    boot_data_pre,
+    ~ ln_mean(.x$batdeathpc)
+  ),
+  ln_mean_post = map(
+    boot_data_post,
+    ~ ln_mean(.x$batdeathpc)
+  )
+) -> post_1950_analysis
+post_1950_analysis |>
+  mutate(
+    across(pl_slope_pre:ln_mean_post, unlist)
+  ) -> post_1950_analysis
+dt |>
+  group_by(
+    period = ifelse(year <= 1950, "Pre-1950", "Post-1950")
+  ) |>
+  summarize(
+    pl_slope = pl_slope(batdeathpc),
+    ln_mean = ln_mean(batdeathpc)
+  ) |>
+  pivot_longer(
+    -period
+  ) |>
+  pivot_wider(
+    values_from = value,
+    names_from = period
+  ) |>
+  select(
+    name, `Pre-1950`, `Post-1950`
+  ) |>
+  rename(
+    Parameter = name
+  ) |>
+  mutate(
+    Parameter = c("Power-law Slope",
+                  "Log-normal Mean"),
+    Difference = `Post-1950` - `Pre-1950`,
+    "p-value" = c(
+      min(
+        mean(post_1950_analysis$pl_slope_post > 
+               post_1950_analysis$pl_slope_pre),
+        mean(post_1950_analysis$pl_slope_pre >
+               post_1950_analysis$pl_slope_post)
+      ) * 2,
+      min(
+        mean(post_1950_analysis$ln_mean_post > 
+               post_1950_analysis$ln_mean_pre),
+        mean(post_1950_analysis$ln_mean_pre >
+               post_1950_analysis$ln_mean_post)
+      ) * 2
+    )
+  ) -> results_table
+```
+
+
+```{r fig.cap="Bootstrap distributions of model parameters pre- and post-1950."}
+post_1950_analysis |>
+  select(pl_slope_pre:ln_mean_post) |>
+  pivot_longer(everything()) |>
+  mutate(
+    param = rep(
+      c("Power-law Slope", "Log-normal Mean"),
+      each = 2
+    ) |> rep(len = n()),
+    period = rep(
+      c("Pre-1950", "Post-1950"),
+      len = n()
+    ) |>
+      as.factor() |>
+      relevel(ref = "Pre-1950")
+  ) |>
+  ggplot() +
+  aes(value, fill = period) +
+  facet_wrap(~ param, scales = "free") +
+  geom_density(
+    alpha = 0.5,
+    color = "white"
+  ) +
+  ggpal(aes = "fill") +
+  labs(
+    fill = NULL
+  )
+```
+
+
+\clearpage
+
+
+
+
+
+<!--
+# References
+\setlength{\parindent}{-0.2in}
+\setlength{\leftskip}{0.2in}
+\setlength{\parskip}{8pt}
+\vspace*{-0.2in}
+\noindent
+-->

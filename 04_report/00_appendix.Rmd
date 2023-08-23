@@ -1,0 +1,937 @@
+---
+title: "Untitled"
+author: "Miles D. Williams"
+date: '2023-08-07'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F,
+                      warning = F,
+                      message = F)
+## Packages
+library(tidyverse)
+library(estimatr)
+library(texreg)
+library(kableExtra)
+library(lmtest)
+library(sandwich)
+library(poweRlaw)
+library(actuar)
+library(coolorrr)
+set_theme()
+set_palette()
+
+## Data
+dt <- read_csv(
+  here::here("01_data", "war-year.csv")
+)
+```
+
+## Fitting the Inverse-Burr
+
+[Let's look at the inverse-Burr as a third alternative. Someone inevitably will ask about it, and it does seem to make for a good fit for the data as shown with the below code. I just need to write the code necessary to implement the GOF test already supported for the power-law and log-normal models. The code needs to simulate data from the inverse-Burr given the parameters identified with the data.]
+
+```{r}
+fit_inburr <- function(dat) {
+  inburr <- function(dat, pars) {
+    pars <- exp(pars)
+    alpha <- pars[1]
+    theta <- pars[2]
+    mu <- pars[3]
+    sum(-log(dinvburr(x = dat, shape1 = alpha,
+          shape2 = theta, 
+          scale = mu)))
+  }
+  optim(
+    par = c(0, 0, 0),
+    fn = inburr,
+    dat = dat
+  ) -> opt_out
+  opt_out$par <- exp(opt_out$par)
+  opt_out
+}
+boot_inburr <- function(dat, its = 200) {
+  the_fit <- fit_inburr(dat)
+  Ddat <- rank(dat) / max(rank(dat))
+  Sdat <- pinvburr(
+    dat, shape1 = the_fit$par[1],
+    shape2 = the_fit$par[2],
+    scale = the_fit$par[3]
+  )
+  the_D <- ks.test(
+    dat,
+    "pinvburr",
+    shape1 = the_fit$par[1],
+    shape2 = the_fit$par[2],
+    scale = the_fit$par[3]
+    )$statistic
+  the_res <- Ddat - Sdat
+  tibble(
+    its = 1:its,
+    bdat = map(
+      its, ~ 
+        tibble(
+          bdat = rinvburr(
+          n = length(dat),
+          shape1 = the_fit$par[1],
+          shape2 = the_fit$par[2],
+          scale = the_fit$par[3]
+        ))
+      ),
+    bootstrap = map(
+      bdat, ~ {
+        bfit <- fit_inburr(.x$bdat)
+        tibble(
+          alpha = bfit$par[1],
+          theta = bfit$par[2],
+          mu = bfit$par[3]
+        )
+      }
+    ),
+    D = map2(
+      bdat, bootstrap, ~ {
+        ks.test(
+          .x$bdat,
+          "pinvburr",
+          shape1 = .y$alpha,
+          shape2 = .y$theta,
+          scale = .y$mu
+          )$statistic
+      }
+    ) |> unlist()
+  ) -> boot_out
+  pval <- mean(boot_out$D > the_D)
+  pars <- the_fit$par
+  names(pars) <- c("alpha", "theta", "mu")
+  list(
+    dat = dat,
+    pars = pars,
+    bootstrap = boot_out$bootstrap |> 
+      bind_rows() |>
+      mutate(D = boot_out$D),
+    the_D = the_D,
+    pval = pval,
+    the_res = the_res,
+    logLik = -the_fit$value
+  )
+}
+fit_lnorm  <- function(dat) {
+  lnorm <- function(dat, pars) {
+    sum(-log(
+      dlnorm(dat, meanlog = pars[1],
+            sdlog = exp(pars[2]))
+    ))
+  }
+  optim(
+    par = c(0, 0),
+    fn = lnorm,
+    dat = dat
+  ) -> opt_out
+  opt_out$par[2] <- exp(opt_out$par[2])
+  opt_out
+}
+boot_lnorm <- function(dat, its = 200) {
+  the_fit <- fit_lnorm(dat)
+  Ddat <- rank(dat) / max(rank(dat))
+  Sdat <- plnorm(
+    dat, meanlog = the_fit$par[1],
+    sdlog = the_fit$par[2]
+  )
+  the_D <- ks.test(
+    dat, 
+    "plnorm",
+    meanlog = the_fit$par[1],
+    sdlog = the_fit$par[2])$statistic
+  the_res <- Ddat - Sdat
+  tibble(
+    its = 1:its,
+    bdat = map(
+      its, ~ 
+        tibble(
+          bdat = rlnorm(
+          n = length(dat),
+          meanlog = the_fit$par[1],
+          sdlog = the_fit$par[2]
+        ))
+      ),
+    bootstrap = map(
+      bdat, ~ {
+        bfit <- fit_lnorm(.x$bdat)
+        tibble(
+          meanlog = bfit$par[1],
+          sdlog = bfit$par[2]
+        )
+      }
+    ),
+    D = map2(
+      bdat, bootstrap, ~ {
+        ks.test(
+          .x$bdat, 
+          "plnorm",
+          meanlog = .y$meanlog,
+          sdlog = .y$sdlog)$statistic
+      }
+    ) |> unlist()
+  ) -> boot_out
+  pval <- mean(boot_out$D > the_D)
+  pars <- the_fit$par
+  names(pars) <- c("meanlog", "sdlog")
+  list(
+    dat = dat,
+    pars = pars,
+    bootstrap = boot_out$bootstrap |> 
+      bind_rows() |>
+      mutate(D = boot_out$D),
+    the_D = the_D,
+    pval = pval,
+    the_res = the_res,
+    logLik = -the_fit$value
+  )
+}
+fit_pl <- function(dat) {
+  if(is.integer(dat)) {
+    the_fit <- displ$new(dat)
+    SimDesign::quiet(the_fit$setXmin(estimate_xmin(the_fit,
+                                  xmins = unique(dat))))
+    Ddat <- rank(dat) / max(rank(dat))
+    Ddat <- Ddat[dat >= the_fit$xmin]
+    list(
+      par = c(the_fit$xmin, the_fit$pars, max(1 - Ddat)),
+      value = dist_ll(the_fit)
+    )
+  } else {
+    the_fit <- conpl$new(dat)
+    SimDesign::quiet(the_fit$setXmin(estimate_xmin(the_fit,
+                                  xmins = unique(dat))))
+    Ddat <- rank(dat) / max(rank(dat))
+    Ddat <- Ddat[dat >= the_fit$xmin]
+    list(
+      par = c(the_fit$xmin, the_fit$pars, max(1 - Ddat)),
+      value = dist_ll(the_fit)
+    )
+  }
+}
+boot_pl <- function(dat, its = 200) {
+  the_fit <- fit_pl(dat)
+  Ddat <- rank(dat) / max(rank(dat))
+  Ddat <- Ddat[dat >= the_fit$par[1]]
+  Sdat <- pplcon(
+    dat[dat >= the_fit$par[1]], xmin = the_fit$par[1],
+    alpha = the_fit$par[2]
+  )
+  the_D <- ks.test(
+    dat[dat >= the_fit$par[1]], 
+    "pplcon",
+    xmin = the_fit$par[1],
+    alpha = the_fit$par[2])$statistic
+  the_res <- Ddat - Sdat
+  tibble(
+    its = 1:its,
+    bdat = map(
+      its, ~ 
+        tibble(
+          bdat = rplcon(
+          n = length(dat),
+          xmin = the_fit$par[1],
+          alpha = the_fit$par[2]
+        ))
+      ),
+    bootstrap = map(
+      bdat, ~ {
+        bfit <- SimDesign::quiet(fit_pl(.x$bdat))
+        tibble(
+          xmin = bfit$par[1],
+          alpha = bfit$par[2],
+          pmin = bfit$par[3]
+        )
+      }
+    ),
+    D = map2(
+      bdat, bootstrap, ~
+        ifelse(
+          sum(.x$bdat >= .y$xmin) == 1,
+          NA_real_,
+          ks.test(
+            .x$bdat[.x$bdat >= .y$xmin], 
+            "pplcon",
+            xmin = .y$xmin,
+            alpha = .y$alpha)$statistic
+          )
+    ) |> unlist()
+  ) -> boot_out
+  pval <- mean(boot_out$D > the_D, na.rm=T)
+  pars <- the_fit$par
+  names(pars) <- c("xmin", "alpha", "pmin")
+  list(
+    dat = dat[dat > the_fit$par[1]],
+    pars = pars,
+    bootstrap = boot_out$bootstrap |> 
+      bind_rows() |>
+      mutate(D = boot_out$D),
+    the_D = the_D,
+    pval = pval,
+    the_res = the_res,
+    logLik = the_fit$value
+  )
+}
+
+## fit them
+## : total deaths
+ib_boot_tot <- boot_inburr(dt$batdeath, its = 1000)
+ln_boot_tot <- boot_lnorm(dt$batdeath, its = 1000)
+pl_boot_tot <- boot_pl(as.integer(dt$batdeath))
+## : likelihood of deaths per 1 mil.
+ib_boot_pc <- boot_inburr(dt$batdeathpc * 1000000, its = 1000)
+ln_boot_pc <- boot_lnorm(dt$batdeathpc * 1000000, its = 1000)
+pl_boot_pc <- boot_pl(dt$batdeathpc * 1000000)
+## : save the results to use in the report
+model_fits <- list(
+  ib_boot_tot = ib_boot_tot,
+  ln_boot_tot = ln_boot_tot,
+  pl_boot_tot = pl_boot_tot,
+  ib_boot_pc = ib_boot_pc,
+  ln_boot_pc = ln_boot_pc,
+  pl_boot_pc = pl_boot_pc
+)
+save(
+  model_fits,
+  file = here::here(
+    "04_report", "model_fits.R"
+  )
+)
+```
+
+```{r}
+tibble(
+  Model = c(
+    "Classic Power-law",
+    "Inverse Burr",
+    "Log-normal"
+  ),
+  D = c(
+    pl_boot_tot$the_D,
+    ib_boot_tot$the_D,
+    ln_boot_tot$the_D
+  ),
+  "p-value" = c(
+    pl_boot_tot$pval,
+    ib_boot_tot$pval,
+    ln_boot_tot$pval
+  )
+)
+```
+
+```{r}
+tibble(
+  Model = c(
+    "Classic Power-law",
+    "Inverse Burr",
+    "Log-normal"
+  ),
+  D = c(
+    pl_boot_pc$the_D,
+    ib_boot_pc$the_D,
+    ln_boot_pc$the_D
+  ),
+  "p-value" = c(
+    pl_boot_pc$pval,
+    ib_boot_pc$pval,
+    ln_boot_pc$pval
+  )
+)
+```
+
+
+```{r}
+compare_models <- function(m, ...) {
+    tibble(
+      Model = list(m, ...),
+      AIC = map(
+        Model, ~ {
+          ## calculate BIC for model 
+          n <- length(.x$dat)
+          k <- ifelse(
+            "alpha" %in% names(.x$pars),
+            yes = 1,
+            no = ifelse(
+              "meanlog" %in% names(.x$pars),
+              yes = 2,
+              no = 3
+            )
+          )
+          ## return AIC
+          - 2 * .x$logLik + 2 * k + (2 * k * (k + 1))/(n - k - 1)
+        }
+      ) |> unlist(),
+      BIC = map(
+        Model, ~ {
+          ## calculate BIC for model 
+          n <- length(.x$dat)
+          k <- ifelse(
+            "alpha" %in% names(.x$pars),
+            yes = 1,
+            no = ifelse(
+              "meanlog" %in% names(.x$pars),
+              yes = 2,
+              no = 3
+            )
+          )
+          ## return BIC
+          - 2 * .x$logLik + k * log(n)
+        }
+      ) |> unlist()
+    ) |>
+      mutate(
+        Model = paste0("Model ", 1:n())
+      )
+}
+compare_models(pl_boot_tot, ib_boot_tot, ln_boot_tot) 
+```
+
+```{r}
+compare_models(pl_boot_pc, ib_boot_pc, ln_boot_pc) 
+```
+
+
+```{r}
+my_plot <- function(dat, pch = 19, col = "gray", ...) {
+  plot(
+    x = dat,
+    y = 1 - rank(dat) / max(rank(dat)),
+    log = "xy",
+    pch = pch,
+    col = col,
+    ...
+  )
+}
+my_lines <- function(m, col = "black", lty = 1, ...) {
+  if("mu" %in% names(m$pars)) {
+    lines(
+      x = sort(m$dat),
+      y = 1 - pinvburr(
+        sort(m$dat),
+        m$pars[1],
+        m$pars[2],
+        scale = m$pars[3]
+      ),
+      log = "xy",
+      col = col,
+      lty = lty,
+      ...
+    )
+  } else if("mean" %in% names(m$pars)) {
+    lines(
+      x = sort(m$dat),
+      y = 1 - pnorm(
+        log(sort(m$dat)),
+        mean = m$pars[1],
+        sd = m$pars[2]
+      ),
+      log = "xy",
+      col = col,
+      lty = lty,
+      ...
+    )
+  } else {
+    lines(
+      x = sort(m$dat[m$dat >= m$pars[1]]),
+      y = (1 - pplcon(
+        sort(m$dat[m$dat >= m$pars[1]]),
+        xmin = m$pars[1],
+        alpha = m$pars[2]
+      )) * m$pars[3],
+      col = col,
+      lty = lty,
+      ...
+    )
+  }
+}
+par(mfcol = c(1, 2))
+my_plot(dt$batdeath, bty = "n",
+        xlab = "Total Battle Deaths",
+        ylab = "Pr(X > x)")
+my_lines(ib_boot_tot, col = "darkblue", lty = 3)
+my_lines(ln_boot_tot, col = "darkred", lty = 2)
+my_lines(pl_boot_tot, col = "forestgreen", lty = 1)
+my_plot(dt$batdeathpc * 1000000, bty = "n",
+        xlab = "Battle Deaths per 1 mil.",
+        ylab = "Pr(X > x)")
+my_lines(ib_boot_pc, col = "darkblue", lty = 3)
+my_lines(ln_boot_pc, col = "darkred", lty = 2)
+my_lines(pl_boot_pc, col = "forestgreen", lty = 1)
+legend(
+  "bottomleft",
+  lty = 3:1,
+  col = c("darkblue", "darkred", "forestgreen"),
+  legend = c("Inverse Burr",
+             "Log-normal",
+             "Power-law"),
+  bty = "n"
+)
+```
+
+```{r}
+inf_pl <- function(dat, its = 100) {
+  fit <- fit_pl(dat)
+  names(fit$par) <- c("xmin", "alpha", "pmin")
+  bfit <- tibble(
+    its = 1:its,
+    map(
+      .x = its,
+      .f = ~ {
+        fit <- fit_pl(
+          sample(dat, length(dat), T)
+        )
+        tibble(
+          xmin = fit$par[1],
+          alpha = fit$par[2],
+          logLik = fit$value
+        )
+      }
+    )
+  ) |> unnest()
+  list(
+    par = fit$par,
+    logLik = fit$value,
+    bpar = bfit
+  )
+}
+inf_inburr <- function(dat, its = 100) {
+  fit <- fit_inburr(dat)
+  names(fit$par) <- c("alpha", "theta", "mu")
+  bfit <- tibble(
+    its = 1:its,
+    map(
+      .x = its,
+      .f = ~ {
+        poss_fit <- possibly(
+          .f = fit_inburr,
+          otherwise = "Error"
+        )
+        fit <- poss_fit(
+            sample(dat, length(dat), T)
+          )
+        tibble(
+          alpha = fit$par[1],
+          theta = fit$par[2],
+          mu = fit$par[3],
+          logLik = -fit$value
+        )
+      }
+    )
+  ) |> unnest()
+  list(
+    par = fit$par,
+    logLik = -fit$value,
+    bpar = bfit
+  )
+}
+inf_lnorm <- function(dat, its = 100) {
+  fit <- fit_lnorm(dat)
+  names(fit$par) <- c("meanlog", "sdlog")
+  bfit <- tibble(
+    its = 1:its,
+    map(
+      .x = its,
+      .f = ~ {
+        while(TRUE) {
+          fit <- try(fit_lnorm(
+              sample(dat, length(dat), T)
+            ), silence = T)
+          if(!is(fit, "try-error")) break
+        }
+        tibble(
+          mean = fit$par[1],
+          sd = fit$par[2],
+          logLik = -fit$value
+        )
+      }
+    )
+  ) |> unnest()
+  list(
+    par = fit$par,
+    logLik = -fit$value,
+    bpar = bfit
+  )
+}
+```
+
+
+
+```{r}
+boot_comps_tot <- tibble(
+  xmins = sort(unique(dt$batdeath))[1:50],
+  out = map(
+    xmins, ~ {
+      compare_models(dt$batdeath, 
+                     its = 100,
+                     force_xmin = .x)
+    }
+  )
+) |>
+  unnest(out)
+boot_comps_pc <- tibble(
+  xmins = sort(unique(dt$batdeathpc * 1000000))[1:50],
+  out = map(
+    xmins, ~ {
+      compare_models(dt$batdeathpc * 1000000, 
+                     its = 100,
+                     force_xmin = .x)
+    }
+  )
+) |>
+  unnest(out)
+boot_comps <- bind_rows(
+  boot_comps_tot |> mutate(Data = "Total Battle Deaths"),
+  boot_comps_pc |> mutate(Data = "Battle Deaths per 1 Mil.")
+)
+save(
+  boot_comps,
+  file = here::here("04_report", "boot_comps.R")
+)
+```
+
+
+
+```{r}
+expand_grid(
+  data = dt |>
+    mutate(
+      period = ifelse(year <= 1950, "Pre-1950", "Post-1950")
+    ) |>
+    group_split(period),
+  model = c("Power-law", "Inverse Burr", "Log-normal"),
+  var = c("batdeath", "batdeathpc")
+) |>
+  mutate(
+    model_var = map2(model, var, ~ c(.x, .y)),
+    fit = map2(
+      .x = data,
+      .y = model_var,
+      .f = ~ {
+        if(.y[1] == "Power-law") {
+          fit <- inf_pl(unlist(.x[, .y[2]]), its = 100)
+        } else if(.y[1] == "Inverse Burr"){
+          fit <- inf_inburr(unlist(.x[, .y[2]]), its = 100)
+        } else {
+          fit <- inf_lnorm(unlist(.x[, .y[2]]), its = 100)
+        }
+        fit
+      }
+    ),
+    Period = map(data, ~ .x$period |> unique()) |>
+      unlist()
+) -> fits_by_period
+save(
+  fits_by_period,
+  file = here::here(
+    "04_report", "fits_by_period.R"
+  )
+)
+```
+
+```{r}
+fits_by_period |>
+  filter(model == "Power-law") |>
+  select(model, var, fit, Period) |>
+  mutate(
+    fit = map(fit, ~ .x$bpar),
+    var = ifelse(var == "batdeath",
+                 "Total Battle Deaths",
+                 "Deaths per 1 Mil.")
+  ) |> 
+  unnest() |>
+  ggplot() +
+  aes(x = alpha, fill = Period) +
+  geom_density(
+    alpha = 0.5
+  ) +
+  facet_wrap(~ var, scales = "free") +
+  labs(
+    x = expression(alpha),
+    y = "Density"
+  ) +
+  ggpal(aes = "fill")
+```
+
+
+```{r}
+fits_by_period |>
+  filter(model == "Inverse Burr") |>
+  select(model, var, fit, Period) |>
+  mutate(
+    fit = map(fit, ~ .x$bpar),
+    var = ifelse(var == "batdeath",
+                 "Total Battle Deaths",
+                 "Deaths per 1 Mil.")
+  ) |> 
+  unnest() |>
+  pivot_longer(
+    c(alpha, theta, mu)
+  ) |>
+  ggplot() +
+  aes(x = value, fill = Period) +
+  geom_density(
+    alpha = 0.5
+  ) +
+  facet_wrap( ~ var + name, scales = "free") +
+  labs(
+    x = "Parameter",
+    y = "Density"
+  ) +
+  ggpal(aes = "fill") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+```{r}
+fits_by_period |>
+  filter(model == "Log-normal") |>
+  select(model, var, fit, Period) |>
+  mutate(
+    fit = map(fit, ~ .x$bpar),
+    var = ifelse(var == "batdeath",
+                 "Total Battle Deaths",
+                 "Deaths per 1 Mil.")
+  ) |> 
+  unnest() |>
+  pivot_longer(
+    c(mean, sd)
+  ) |>
+  ggplot() +
+  aes(x = value, fill = Period) +
+  geom_density(
+    alpha = 0.5
+  ) +
+  facet_wrap(~ var + name, scales = "free") +
+  labs(
+    x = "Parameter",
+    y = "Density"
+  ) +
+  ggpal(aes = "fill")
+```
+
+```{r}
+pl_pval <- fits_by_period |>
+  filter(model == "Power-law") |>
+  select(model, Period, var, fit) |>
+  mutate(
+    fit = map(fit, ~ .x$bpar)
+  ) |> unnest() |>
+  select(
+    model, Period, var, alpha
+  ) |>
+  pivot_wider(
+    names_from = Period,
+    values_from = alpha
+  ) |> unnest() |>
+  group_by(model, var) |>
+  summarize(
+    diff = mean(
+      `Post-1950` - `Pre-1950`
+    ),
+    pvalue = 2 * min(
+      mean(`Post-1950` > `Pre-1950`),
+      mean(`Post-1950` < `Pre-1950`)
+    )
+  )
+
+ib_pval <- fits_by_period |>
+  filter(model == "Inverse Burr") |>
+  select(model, Period, var, fit) |>
+  mutate(
+    fit = map(fit, ~ .x$bpar)
+  ) |> unnest() |>
+  select(
+    model, Period, var, mu
+  ) |>
+  pivot_wider(
+    names_from = Period,
+    values_from = mu
+  ) |> unnest() |>
+  group_by(model, var) |>
+  summarize(
+    diff = mean(
+      `Post-1950` - `Pre-1950`
+    ),
+    pvalue = 2 * min(
+      mean(`Post-1950` > `Pre-1950`),
+      mean(`Post-1950` < `Pre-1950`)
+    )
+  )
+
+ln_pval <- fits_by_period |>
+  filter(model == "Log-normal") |>
+  select(model, Period, var, fit) |>
+  mutate(
+    fit = map(fit, ~ .x$bpar)
+  ) |> unnest() |>
+  select(
+    model, Period, var, mean
+  ) |>
+  pivot_wider(
+    names_from = Period,
+    values_from = mean
+  ) |> unnest() |>
+  group_by(model, var) |>
+  summarize(
+    diff = mean(
+      `Post-1950` - `Pre-1950`
+    ),
+    pvalue = 2 * min(
+      mean(`Post-1950` > `Pre-1950`),
+      mean(`Post-1950` < `Pre-1950`)
+    )
+  )
+
+bind_rows(
+  pl_pval,
+  ib_pval,
+  ln_pval
+)
+```
+
+
+```{r}
+inbur_reg <- function(formula, data = NULL) {
+  
+  ## The Data
+  y  <- model.frame(formula, data)[, 1]
+  x  <- model.matrix(formula, data)
+  
+  ## The likelihood
+  inbur_lik <- function(x, y, pars) {
+    b <- matrix(
+      data = pars[1:ncol(x)],
+      nrow = ncol(x),
+      ncol = 1
+    )
+    mu <- exp(x %*% b)
+    alpha <- exp(pars[ncol(x) + 1])
+    theta <- exp(pars[ncol(x) + 2])
+    sum(
+      - log(
+        dinvburr(
+          y, 
+          shape1 = alpha,
+          shape2 = theta,
+          scale = mu
+        )
+      )
+    )
+  }
+  
+  ## Estimation
+  optim(
+    par = rep(0, len = ncol(x) + 2),
+    fn = inbur_lik,
+    x = x,
+    y = y,
+    hessian = T
+  ) -> opt_out
+  
+  list(
+    out = tibble(
+      term = c(colnames(x),
+               "log(alpha)","log(theta)"),
+      estimate = opt_out$par,
+      std.error = opt_out$hessian |>
+        solve() |>
+        sqrt() |> diag(),
+      statistic = estimate / std.error,
+      p.value = 1 - pnorm(
+        abs(statistic)
+      ) |> round(3)
+    ),
+    logLik = -opt_out$value,
+    dat = data
+  )
+}
+ib_model1 <- inbur_reg(
+  batdeath ~ log(tpop) + log(milper) + 
+    min_polyarchy, data = dt
+)
+ib_model2 <- inbur_reg(
+  batdeathpc * 1000000 ~ log(tpop) + log(milper) + 
+    min_polyarchy, data = dt
+)
+lm_model1 <- #lm_robust(
+  glm(
+  log(batdeath) ~ log(tpop) + log(milper) + 
+    min_polyarchy, data = dt,
+  #se_type = "stata"
+) 
+lm_model2 <- #lm_robust(
+  glm(
+  log(batdeathpc * 1000000) ~ log(tpop) + log(milper) +
+    min_polyarchy, data = dt,
+  #se_type = "stata"
+)
+```
+
+
+```{r}
+library(dotwhisker)
+ib_aic <- function(m) {
+  logLik <- m$logLik
+  n <- nrow(m$dat)
+  k <- nrow(m$out)
+  - 2 * logLik  + 2 * k 
+}
+ib_bic <- function(m) {
+  logLik <- m$logLik
+  n <- nrow(m$dat)
+  k <- nrow(m$out)
+  - 2 * logLik + k * log(n)
+}
+bind_rows(
+  tidy(lm_model1)[,1:5] |>
+    mutate(
+      model = paste0("Log-normal\n(Total Deaths)\n AIC = ",
+                     round(AIC(lm_model1), 2),
+                     "\n BIC = ",
+                     round(BIC(lm_model1), 2))
+    ),
+  tidy(lm_model2)[,1:5] |>
+    mutate(
+      model = paste0("Log-normal\n(Per 1 mil.)\n AIC = ",
+                     round(AIC(lm_model2), 2),
+                     "\n BIC = ",
+                     round(BIC(lm_model2), 2))
+    ),
+  ib_model1$out |>
+    mutate(
+      model = paste0("Inverse Burr\n(Total Deaths)\n AIC = ",
+                     round(ib_aic(ib_model1), 2),
+                     "\n BIC = ",
+                     round(ib_bic(ib_model1), 2))
+    ),
+  ib_model2$out |>
+    mutate(
+      model = paste0("Inverse Burr\n(Per 1 mil.)\n AIC = ",
+                     round(ib_aic(ib_model2), 2),
+                     "\n BIC = ",
+                     round(ib_bic(ib_model2), 2))
+    )
+) |>
+  filter(
+    !str_detect(term, "alpha|theta")
+  ) |>
+  mutate(
+    term = rep(c("(Intercept)",
+                 "Population (ln)", "Military Size (ln)", "Democracy"),
+               len = n())
+  ) |>
+  small_multiple() +
+  geom_hline(
+    yintercept = 0,
+    lty = 2
+  ) +
+  theme_test() +
+  theme(legend.position = "none")
+```
+
+
+

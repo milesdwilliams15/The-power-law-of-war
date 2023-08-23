@@ -1,0 +1,747 @@
+---
+output: 
+  stevetemplates::article:
+    fig_caption: true
+bibliography: '../05_ref/ref.bib'
+biblio-style: apsr
+title: "Can We Just Normalize War?"
+thanks: "Replication files are available on the author's Github account (http://github.com/milesdwilliams15). **Current version**: `r format(Sys.time(), '%B %d, %Y')`; **Corresponding author**: williamsmd@denison.edu."
+author:
+- name: Miles D. Williams
+  affiliation: Denison University
+abstract: "Can we just log-normalize the size of interestate conflicts to analyze them? Doing so has been verboten among scholars interested in analyzing long-term trends in war size due to concerns that the most extreme wars are power-law distributed. This view has limited the scope of statistical tools and hypothesis tests considered suitable for analyzing the data. While a more flexible model for war size than the classic power-law formulation has been proposed, a formal "
+keywords: "war, power-law, log-normal"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+geometry: margin=1in
+fontfamily: mathpazo
+fontsize: 12pt
+spacing: double
+endnote: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=FALSE, echo=FALSE,
+                      message=FALSE, warning=FALSE,
+                      fig.path='figs/',
+                      cache.path = '_cache/',
+                      fig.process = function(x) {
+                      x2 = sub('-\\d+([.][a-z]+)$', '\\1', x)
+                      if (file.rename(x, x2)) x2 else x
+                      })
+
+## Packages
+library(tidyverse)
+library(estimatr)
+library(texreg)
+library(kableExtra)
+library(lmtest)
+library(sandwich)
+library(poweRlaw)
+library(actuar)
+library(patchwork)
+library(coolorrr)
+theme_set(theme_test())
+set_palette()
+
+## Source file for helpers
+#source(here::here("04_report", "00_helpers.R"))
+source(here::here("04_report", "00_coninvbur.R"))
+
+## Data
+dt <- read_csv(
+  here::here("01_data", "war-year.csv")
+)
+```
+
+# Introduction
+
+# The Power-law and Alternatives
+
+One of the most pressing questions prior research on battle deaths seeks to address is how best to model variation in war intensity. International wars are said to follow Richardson's Law, which holds that most wars kill only a few combatants while a few are likely to be exceptionally deadly. The discovery of this regularity is owed, in part, to early contributions to the quantitative study of conflict by Lewis F. Richardson [-@richardson1948; -@richardson1960], who compiled original data on the size and duration of historical international wars.
+
+```{r}
+num <- dt$batdeath[dt$batdeath <= quantile(dt$batdeath, 0.8)]
+den <- dt$batdeath
+pct <- round(100 * sum(num) / sum(den), 2)
+```
+
+Evidence of Richardson's Law persists in more up-to-date and now well-established datasets, such as the Correlates of War (CoW) interstate conflict series, which documents the battle deaths from 95 interstate wars fought between 1816 and 2007 [@sarkeeswayman2010rw]. Figure 1 shows the distribution of total battle deaths from the 95 wars in the dataset. For ease of interpretation, battle deaths are shown on the log-10 scale. It is plain to see that the distribution abides by Richardson's Law. The bottom 80% of wars in terms of deadliness account for only `r pct`% of total battle deaths in the data. Conversely, the remaining 20% of wars are responsible for `r 100 - pct`% of battle related deaths in interstate conflicts. That is a remarkable disparity.
+
+```{r fig.cap="Density plot of total battle deaths from CoW battle series, 1816-2007. The x-axis is on the log-10 scale. The 80th percentile is denoted with a vertical line."}
+ggplot(dt) +
+  aes(x = batdeath) +
+  geom_density(fill = "gray") +
+  scale_x_log10(
+    labels = scales::comma
+  ) +
+  geom_vline(
+    aes(
+      xintercept = quantile(batdeath, 0.8)
+    )
+  ) +
+  annotate(
+    "text",
+    x = quantile(dt$batdeath, 0.8),
+    y = 0.35,
+    label = "80th",
+    hjust = 1
+  ) +
+  labs(
+    x = "Battle Deaths (log-10)",
+    y = "Density",
+    fill = NULL
+  ) +
+  ggpal(aes = "fill")
+```
+
+To model the unique distribution of battle deaths from interstate conflicts, researchers have typically turned to the power-law. Power-law generated data display characteristically thick, extreme tails---and war size clearly has an extreme tail. The power-law model characterizes the inverse cumulative distribution function (CDF), or the probability of an event of size $X$ greater than $x$ as
+$$\Pr(X > x) \propto x^{-\alpha} \quad \text{for all large }x$$
+where $\alpha > 0$. That is, the probability of an event $X > x$ is inversely proportional to the size of the event raised to the power $\alpha$. As $\alpha \to 0$, the likelihood of even extremely large events is quite high. 
+
+The power-law model also has the distinct property of linearity between the inverse CDF and observed event size on the log-log scale. That is:
+$$\log[\Pr(X > x)] \propto -\alpha \log(x).$$
+This is illustrated in Figure 2, which compares the theoretical inverse CDF of a hypothetical variable $x$ on an unadjusted scale versus a log-log scale. 
+
+```{r fig.cap="The inverse CDF of power-law data in unadjusted scale versus log-log scale.", fig.height=3, fig.width=6}
+x <- 1:100
+y <- (x / max(x))^-4
+p1 <- ggplot() +
+  aes(x, y) +
+  geom_line(size = 1) +
+  labs(
+    x = "x",
+    y = "Pr(X > x)",
+    title = "Unadjusted Scale"
+  )
+p2 <- p1 + 
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(
+    title = "log-log Scale"
+  )
+p1 + p2 &
+  theme(
+    axis.text = element_blank()
+  )
+```
+
+In practice, such linearity is rarely so consistent across the entire set of observed data. For example, using the CoW conflict series, but this time with battle deaths adjusted to the population size of the countries fighting a war, the relationship between the empirical $\Pr(X > x)$ and $x$ in log-log space displays clear quasi-concavity (Figure 3). This is true for many other phenomena with extreme tails. Sometimes we only observe this characteristic linearity in the extreme tail of the distribution, giving rise to the necessity of identifying $x_\text{min}$ such that all $x \geq x_\text{min}$ are power-law distributed. This step of identifying $x_\text{min}$, in fact, is the state-of-the-art for fitting the power-law to data [@clausetEtAl2009]. The consequences can sometimes be minimal, but in other cases this approach can lead to substantial data loss. However, this can be justified if we really believe the data are power-law distributed in the extreme tail, and if such events are the primary focus of study.
+
+```{r fig.cap="The inverse ECDF of belligerent deaths (deaths per the populations of the countries fighting a war) per 1 million shown in the log-10 scale."}
+f <- function(x) 1 - rank(x) / max(rank(x))
+ggplot(dt) +
+  aes(x = batdeathpc * 1000000, y =f(batdeathpc)) +
+  geom_point(color = "gray") +
+  scale_x_log10(
+    labels = scales::comma
+  ) +
+  scale_y_log10() +
+  labs(
+    x = "Belligerent deaths per million",
+    y = "Pr(X > x)"
+  )
+```
+
+
+Studying the extreme tails of phenomena with the power-law model, even with substantial truncation, remains a popular choice because of its mathematical properties. Most notable among these is the possibility of identifying scale-free phenomena. If $\alpha < 3$, the data lack a well defined variance, and if $\alpha < 2$ the data lack a well defined mean. In such extreme cases, the phenomenon under study can be subject to *black swan* behavior---events that are exceptionally extreme and inexplicable---with the expected magnitude of such events statistically indistinguishable from infinity. This has made the power-law especially relevant to conflict scholars interested in studying the deadly potential of international war. In fact, previous research on the CoW battle series finds that $\alpha < 2$ [@braumoeller2019], supporting the conclusion that interstate conflicts (worryingly) have the potential to become black swan events.
+
+Of course, the classic power-law model is not the only model that can capture data with a power-law tail. There are alternatives that have more favorable, though less provocative, properties for statistical analysis. In an excellent study, @cunen2020 recently used a more general distributional form known as the inverse Burr to study the CoW battle series summarized above. The inverse Burr distribution specifies the probability of an event greater than size $x$ as:
+$$
+\Pr(X > x) = 1 - \left[\frac{(x/\mu)^\theta}{1 + (x / \mu)^\theta} \right]^\alpha
+$$
+where the parameters $\mu$, $\theta$, and $\alpha$ are strictly greater than zero. The parameter $\mu$ is a scaling parameter that captures the central tendency of $x$, while $\theta$ and $\alpha$ are shape parameters. $\theta$ in particular functions much the same way that $\alpha$ does in characterizing the extreme tails of power-law distributed data. This is because as $x$ increases we have:
+$$\Pr(X > x) \approx \alpha (\mu / z)^\theta.$$
+
+According to @cunen2020, the strength of the inverse Burr relative to the classic power-law is its ability to model the entire battle series, not just the extreme tail. Returning to the relationship between the inverse CDF and observed data in log-log space, the inverse Burr is able to accommodate deviations from linearity that the power-law model cannot efficiently handle. In particular, it can handle the quasi-concavity on display in Figure 3. This is further illustrated in Figure 4, which shows the relationship between the inverse CDF and some hypothetical observed data assuming an inverse Burr distribution.
+
+```{r fig.cap="The inverse CDF of inverse Burr data in unadjusted scale versus log-log scale.", fig.height=3, fig.width=6}
+x <- 1:100
+y <- (1 / (1 + exp(x)))^2
+p1 <- ggplot() +
+  aes(x, y) +
+  geom_line(size = 1) +
+  labs(
+    x = "x",
+    y = "Pr(X > x)",
+    title = "Unadjusted Scale"
+  )
+p2 <- p1 + 
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(
+    title = "log-log Scale"
+  )
+p1 + p2 &
+  theme(
+    axis.text = element_blank()
+  )
+```
+
+The result of this increased flexibility is greater statistical power because the model can be fit efficiently with all the data, not just the most extreme events. This is the justification that @cunen2020 make for preferring the inverse Burr over the classic power-law in their analysis of the CoW battle data. 
+
+However, the inverse Burr model is not the only distributional form that can more flexibly model both smaller and larger events simultaneously, nor is it necessarily the most useful. The log-normal distribution, as the name suggests, characterizes data that is normally distributed in the log-scale. It has the inverse CDF:
+$$
+\Pr(X > x) = 1 - \Phi([\log(x) - \mu] / \sigma) 
+$$
+where $\mu$ and $\sigma > 0$ are the logmean and log standard deviation, respectively, and $\Phi(\cdot)$ is the normal CDF. 
+
+Like the inverse Burr, the log-normal model can capture a curved relationship between the inverse CDF and the data in log-log space, as shown in Figure 5. Note that the fit is not identical to that of the inverse Burr. It is slightly more severe, which leads the log-normal model to give a slightly higher probability to smaller events and a lower probability to larger events.
+
+```{r fig.cap="The inverse CDF of log-normal data in unadjusted scale versus log-log scale.", fig.height=3, fig.width=6}
+x <- 1:100
+y <- 1 - pnorm(x, mean = 0, sd = 20)
+p1 <- ggplot() +
+  aes(x, y) +
+  geom_line(size = 1) +
+  labs(
+    x = "x",
+    y = "Pr(X > x)",
+    title = "Unadjusted Scale"
+  )
+p2 <- p1 + 
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(
+    title = "log-log Scale"
+  )
+p1 + p2 &
+  theme(
+    axis.text = element_blank()
+  )
+```
+
+The log-normal model offers some advantages over both the classic power-law and inverse Burr models. The first is parsimony. With one less parameter than the inverse Burr, the log-normal model has a simpler functional form. While this comes at the cost of some flexibility, a simple model that does relatively well is sometimes preferable to a more complex one that is over-fit.
+
+The second advantage of the log-normal model is that it is amenable to conventional statistical analysis. The power-law is not straightforward to parameterize with covariates, and in some scenarios it even may be inappropriate to do so (such as with scale-free phenomena). The better behaved inverse Burr can be parameterized using covariates, but most statistical packages do not provide the option to specify an inverse Burr regression model. This means the researcher must program an inverse Burr regression or other parameterizations "by hand." Meanwhile, log-normal data can be modeled using conventional regression analysis tools with model parameters estimated either via ordinary least squares or maximum likelihood.
+
+For practical reasons, if the log-normal model makes for a suitable fit for interstate war size, this opens a world of possibility for making new inferences and testing new hypotheses with historical war data. Even so, past research on war size has typically overlooked or minimized the utility of log-normalization. One of the contributions of this study is to provide evidence-based assessments of the appropriateness of the log-normal model for studying war size relative to classic power-law and the more recently proposed inverse Burr model.
+
+# Methods for Model Fitting and Selection
+
+@clausetEtAl2009 provide tools for using the power-law to study phenomena, test its goodness of fit, and compare it to alternatives. However, while the statistical software they developed supports the power-law and log-normal distributions, it does not support the inverse Burr. The code necessary to do so had to be written from scratch, which is provided in the Code Appendix. 
+
+@clausetEtAl2009 lay out a simple "recipe" for analyzing data with the power-law model. The first step is simply to fit the power-law to data using the procedure summarized in the previous section. In short, find the best fitting $x_\text{min}$ and $\hat \alpha$.
+
+The second step in the recipe is to perform a goodness of fit (GOF) test. @clausetEtAl2009 detail a bootstrapping/simulation approach that involves first estimating the KS statistic for the fitted power-law model. Next, using the fitted model, simulate new synthetic datasets. The power-law is then fit to the synthetic data and a KS statistic is calculated using the synthetic data and the power-law parameters fit to that specific synthetic dataset. A p-value from this test is calculated as the share of times the distances measured using the simulated data are larger than the empirical distance. If the p-value is small then the power-law is not a plausible fit for the data. @clausetEtAl2009 recommend $p < 0.1$ as the cutoff.
+
+The third and final step involves comparing the power-law to alternative models. One way to approach this is to fit the alternatives to the same data, perform the GOF test proposed above but with the alternative models, and compare the results to the power-law. If the power-law cannot be ruled out, but the alternatives can, this serves as a basis for favoring the power-law.
+
+However, in some cases separate GOF tests will not be definitive. In this case, @clausetEtAl2009 suggest a likelihood ratio (LR) test to formally judge which model is the better fit for the data. In particular, they recommend Vuong's test, which is an LR-based test for model selection using Kullback-Leibler criteria [see @vuong1989likelihood]. Importantly, this test requires the competing models are fit to the same data. This creates an obvious challenge when comparing the inverse Burr model or log-normal model, which are meant to fit the *entire* data sample, and the classic power-law model, which may only be valid for the most extreme observations in the data sample. One solution around this problem is to recursively perform the LR test using alternative truncation points in the data sample.
+
+
+
+Using this simple recipe, it is not possible to identify the "true" model for the data. However, it provides a rigorous and data-driven way to identify the best model for the data. The next section outlines the data sources and measures that will be used to identify the best-fitting model for battle deaths.
+
+# Data and Measures
+
+As noted earlier, the data used to fit the models comes from the CoW interstate conflict dataset, which documents battle deaths per country across 95 interstate wars fought between 1816 and 2007. The data were accessed using the `{peacesciencer}` R package [@peacesciencer-package]. For each conflict in the dataset, the total number of battle deaths across countries fighting a war were tallied, yielding a battle deaths series of 95 observations. 
+
+As noted earlier, other datasets have been assembled of historical wars. [cite some of them here] The CoW conflict series is chosen for two reasons. The first is its widespread use, which makes comparisons with approaches used in other studies easier [cites here]. The second justification is that the CoW data are generally considered of good quality. That does not mean they are regarded as perfect. As previously mentioned, the data contain a number of suspiciously round numbers for total battle deaths, meaning the counts likely are not perfectly accurate for several conflicts. There are also some conflicts in the data for which death counts are disputed [cite here]. The data also have limited coverage. While the data cover the years 1816 to 2007 (nearly two centuries worth of wars), the history of human conflict did not start in 1816, nor did it end in 2007. Some studies have developed conflict series that start at year 1 A.C.E. and run to the present [cite]. However, the quality of these data are less established.  
+
+With a dataset chosen, the next issue to settle is how to measure war size. Should total battle deaths be studied, or should deaths be normalized by population? The answer depends on what question we want to answer. Total battle deaths provide a direct measure of absolute war size, while relative quantities, like deaths per 1 million, provide a measure of relative risk of dying in war. Different studies take different approaches. The choice is made here to apply both, since both quantities can be of interest depending on the research questions being asked. It is also possible that normalizing by population will alter conclusions about model fit. It could be that the power-law is appropriate for modeling the absolute size of wars, while the inverse Burr or log-normal are better once population size is accounted for.
+
+With respect to relative conflict size, the choice of denominator also has to be addressed. Some scholars prefer to use global population as the denominator rather than only the populations of the countries involved in a war [cite]. This choice follows from different goals. Deaths per global population is akin to a measure of all-cause mortality from war, meaning it treats war like a public health issue. Deaths per the populations of the countries fighting a war treats war like a political activity or behavior that has unique consequences for the countries involved [@braumoeller2019]. Rather than adjudicate between which approach is most appropriate, both measures, in addition to total war size, are utilized here.
+
+The dataset to be analyzed, then, has for each given war $i$ in $i = 1, ..., 95$ a measure of absolute war size ($x_i$), a measure of war size per global population ($x_i / n_i$), and a measure of war size per the populations of the countries fighting a given war ($x_i / m_i$). The value $n_i$ denotes world population at the time a war starts, and $m_i$ denotes the combined population of the countries fighting a war at the time a war starts. Values for each were scaled to deaths per 1 million. The data for population come from version 6.0 of the CoW National Military Capabilities dataset, and were also accessed using the `{peacesciencer}` package [@singer1987rcwd; @singeretal1972cdu]. 
+
+
+# Analysis
+
+Having established the conflict series and measures of war size to be used for the analysis, the next step is to fit the alternative models to the data following the "recipe" outlined by @clausetEtAl2009 for evaluating their performance. In the first section below, a descriptive summary of each of the model fits for the data is provided. The analysis was supported by software developed by @clausetEtAl2009 for estimating and validating power-law fits for data relative to alternative distributions. Unfortunately, the software does not currently support the inverse Burr distribution, but modifications to the code allow capability for the inverse Burr to be grafted in. The R code is available in the code Appendix for interested readers.
+
+```{r}
+# the data
+x <- dt$batdeath
+y <- dt$batdeath / dt$wpop * 1000000
+z <- dt$batdeathpc * 1000000
+
+# fits for total war size
+x1 <- conpl$new(x)
+x1$setXmin(estimate_xmin(x1))
+x2 <- coninvburr$new(x)
+x2$setPars(estimate_pars(x2))
+x3 <- conlnorm$new(x)
+x3$setPars(estimate_pars(x3))
+
+# fits for "all cause mortality"
+y1 <- conpl$new(y)
+y1$setXmin(estimate_xmin(y1))
+y2 <- coninvburr$new(y)
+y2$setPars(estimate_pars(y2))
+y3 <- conlnorm$new(y)
+y3$setPars(estimate_pars(y3))
+
+# fits for risk of war
+z1 <- conpl$new(z)
+z1$setXmin(estimate_xmin(z1))
+z2 <- coninvburr$new(z)
+z2$setPars(estimate_pars(z2))
+z3 <- conlnorm$new(z)
+z3$setPars(estimate_pars(z3))
+```
+
+
+```{r fig.height=3, fig.width=9, fig.cap="Visualization of model fits for the data. The empirical inverse CDF is shown over the data in log-log space across panels. The first panel shows results for total battle deaths. The second shows results for battle deaths per global population in millions. The third shows results for battle deaths per population of the countries at war in millions."}
+par(mfcol = c(1, 3))
+plot(x1, pch = 19, col = "gray",
+     xlab = "x", ylab = "Pr(X > x)",
+     main = "Total War Size")
+lines(x3, col = "indianred3")
+lines(x2, col = "royalblue")
+lines(x1, col = "black")
+plot(y1, pch = 19, col = "gray",
+     xlab = "x", ylab = "Pr(X > x)",
+     main = "War Size per Global Pop.")
+lines(y3, col = "indianred3")
+lines(y2, col = "royalblue")
+lines(y1, col = "black")
+plot(z1, pch = 19, col = "gray",
+     xlab = "x", ylab = "Pr(X > x)",
+     main = "War Size per Country Pop.")
+lines(z3, col = "indianred3")
+lines(z2, col = "royalblue")
+lines(z1, col = "black")
+legend(
+  "bottomleft",
+  lty = c(1, 1, 1),
+  col = c("black", "royalblue", "indianred3"),
+  legend = c("Power-law", "Inverse Burr", "Log-normal"),
+  bty = "n"
+)
+```
+
+
+```{r}
+## GOF
+gof1 <- my_bootstrap_p(
+  x1,
+  threads = 4, no_of_sims = 200
+)
+gof2 <- my_bootstrap_p(
+  x2, no_of_sims = 200
+)
+gof3 <- my_bootstrap_p(
+  x3,
+  threads = 4, no_of_sims = 200,
+  xmins = rep(min(x3$dat), 2)
+)
+
+tibble(
+  Model = c("Power-law", "Inverse Burr", "Log-normal"),
+  GOF = c(gof1$gof, gof2$gof, gof3$gof),
+  "p-value" = c(gof1$p, gof2$p, gof3$p)
+) |>
+  kbl(
+    caption = "GOF tests for total war size",
+    booktabs = T,
+    linesep = "",
+    digits = 2
+  )
+
+```
+
+
+```{r}
+## GOF
+gof1 <- my_bootstrap_p(
+  y1,
+  threads = 4, no_of_sims = 200
+)
+gof2 <- my_bootstrap_p(
+  y2, no_of_sims = 200
+)
+gof3 <- my_bootstrap_p(
+  y3,
+  threads = 4,
+  xmins = rep(min(y3$dat), 2),
+  no_of_sims = 200
+)
+
+tibble(
+  Model = c("Power-law", "Inverse Burr", "Log-normal"),
+  GOF = c(gof1$gof, gof2$gof, gof3$gof),
+  "p-value" = c(gof1$p, gof2$p, gof3$p)
+) |>
+  kbl(
+    caption = "GOF tests for war size per global population",
+    booktabs = T,
+    linesep = "",
+    digits = 2
+  )
+
+```
+
+
+```{r }
+## GOF
+gof1 <- my_bootstrap_p(
+  z1,
+  threads = 4,
+  no_of_sims = 200
+)
+gof2 <- my_bootstrap_p(
+  z2, no_of_sims = 200
+)
+gof3 <- my_bootstrap_p(
+  z3,
+  threads = 4,
+  no_of_sims = 200,
+  xmins = rep(min(z3$dat), 2)
+)
+
+tibble(
+  Model = c("Power-law", "Inverse Burr", "Log-normal"),
+  GOF = c(gof1$gof, gof2$gof, gof3$gof),
+  "p-value" = c(gof1$p, gof2$p, gof3$p)
+) |>
+  kbl(
+    caption = "GOF tests for war size per country population",
+    booktabs = T,
+    linesep = "",
+    digits = 2
+  )
+
+```
+
+
+```{r fig.cap="Likelihood ratio test for power-law vs. inverse Burr model using battle deaths per global population in millions. Values shown over possible data trunctions."}
+tibble(
+  xvals = sort(y)[1:60][-c(7:8, 25, 51,54)],
+  out = map(
+    xvals, ~ {
+      m1 <- conpl$new(y[y>=.x])
+      m1$setPars(estimate_pars(m1))
+      m2 <- coninvburr$new(y[y>=.x])
+      m2$setPars(estimate_pars(m2))
+      cd <- compare_distributions(m1, m2)
+      tibble(
+        statistic = cd$test_statistic,
+        p.value = cd$p_two_sided
+      )
+    }
+  )
+) |> unnest(out) -> compare_out
+
+library(geomtextpath)
+ggplot(compare_out) +
+  aes(x = xvals, y = statistic) +
+  geom_line() +
+  labs(
+    x = expression(log(x[min])),
+    y = "log(R)"
+  ) +
+  geom_texthline(
+    yintercept = -1.96,
+    linetype = 2,
+    label = "Significance Threshold"
+  ) +
+  geom_texthline(
+    yintercept = 1.96,
+    linetype = 2,
+    label = "Significance Threshold"
+  ) +
+  geom_hline(
+    yintercept = 0
+  ) +
+  scale_x_log10()
+```
+
+
+
+```{r fig.cap="Likelihood ratio test for power-law vs. log-normal model using battle deaths per country population in millions. Values shown over possible data trunctions."}
+tibble(
+  xvals = sort(z)[1:60],
+  out = map(
+    xvals, ~ {
+      m1 <- conpl$new(z[z>=.x])
+      m1$setPars(estimate_pars(m1))
+      m2 <- conlnorm$new(z[z>=.x])
+      m2$setPars(estimate_pars(m2))
+      cd <- compare_distributions(m1, m2)
+      tibble(
+        statistic = cd$test_statistic,
+        p.value = cd$p_two_sided
+      )
+    }
+  )
+) |> unnest(out) -> compare_out
+
+library(geomtextpath)
+ggplot(compare_out) +
+  aes(x = xvals, y = statistic) +
+  geom_line() +
+  labs(
+    x = expression(log(x[min])),
+    y = "log(R)"
+  ) +
+  geom_texthline(
+    yintercept = -1.96,
+    linetype = 2,
+    label = "Significance Threshold",
+    hjust = .2
+  ) +
+  geom_texthline(
+    yintercept = 1.96,
+    linetype = 2,
+    label = "Significance Threshold"
+  ) +
+  geom_hline(
+    yintercept = 0
+  ) +
+  scale_x_log10()
+```
+
+```{r}
+## total size
+tibble(
+  xvals = sort(dt$batdeath)[1:70],
+  pl_gof = map(
+    xvals, ~ {
+      m <- conpl$new(dt$batdeath)
+      m$setXmin(.x)
+      m$setPars(estimate_pars(m))
+      ks <- get_distance_statistic(m)
+      tibble(pl_gof = ks)
+    }
+  ),
+  ib_gof = map(
+    xvals, ~ {
+      m <- coninvburr$new(dt$batdeath)
+      m$setXmin(.x)
+      m$setPars(estimate_pars(m))
+      ks <- get_distance_statistic(m)
+      tibble(ib_gof = ks)
+    }
+  ),
+  ln_gof = map(
+    xvals, ~ {
+      m <- conlnorm$new(dt$batdeath)
+      m$setXmin(.x)
+      m$setPars(estimate_pars(m))
+      ks <- get_distance_statistic(m)
+      tibble(ln_gof = ks)
+    }
+  )
+) |>
+  unnest(
+    pl_gof:ln_gof
+  ) -> recursive_gof_x
+
+## per global pop.
+tibble(
+  xvals = sort(dt$batdeath / dt$wpop * 1000000)[1:70],
+  pl_gof = map(
+    xvals, ~ {
+      m <- conpl$new(dt$batdeath / dt$wpop * 1000000)
+      m$setXmin(.x)
+      m$setPars(estimate_pars(m))
+      ks <- get_distance_statistic(m)
+      tibble(pl_gof = ks)
+    }
+  ),
+  ib_gof = map(
+    xvals, ~ {
+      m <- coninvburr$new(dt$batdeath / dt$wpop * 1000000)
+      m$setXmin(.x)
+      m$setPars(estimate_pars(m))
+      ks <- get_distance_statistic(m)
+      tibble(ib_gof = ks)
+    }
+  ),
+  ln_gof = map(
+    xvals, ~ {
+      m <- conlnorm$new(dt$batdeath / dt$wpop * 1000000)
+      m$setXmin(.x)
+      m$setPars(estimate_pars(m))
+      ks <- get_distance_statistic(m)
+      tibble(ln_gof = ks)
+    }
+  )
+) |>
+  unnest(
+    pl_gof:ln_gof
+  ) -> recursive_gof_y
+
+## per capita
+tibble(
+  xvals = sort(dt$batdeathpc * 1000000)[1:70],
+  pl_gof = map(
+    xvals, ~ {
+      m <- conpl$new(dt$batdeathpc * 1000000)
+      m$setXmin(.x)
+      m$setPars(estimate_pars(m))
+      ks <- get_distance_statistic(m)
+      tibble(pl_gof = ks)
+    }
+  ),
+  ib_gof = map(
+    xvals, ~ {
+      m <- coninvburr$new(dt$batdeathpc * 1000000)
+      m$setXmin(.x)
+      m$setPars(estimate_pars(m))
+      ks <- get_distance_statistic(m)
+      tibble(ib_gof = ks)
+    }
+  ),
+  ln_gof = map(
+    xvals, ~ {
+      m <- conlnorm$new(dt$batdeathpc * 1000000)
+      m$setXmin(.x)
+      m$setPars(estimate_pars(m))
+      ks <- get_distance_statistic(m)
+      tibble(ln_gof = ks)
+    }
+  )
+) |>
+  unnest(
+    pl_gof:ln_gof
+  ) -> recursive_gof_z
+```
+
+```{r fig.height=3, fig.width=9, fig.cap="GOF metrics for the classic power-law, inverse Burr, and log-normal models given alternative data sample truncations."}
+p1 <- recursive_gof_x |>
+  pivot_longer(c(pl_gof, ib_gof, ln_gof)) |>
+  ggplot() +
+  aes(x = (70/95) * rank(xvals) / max(rank(xvals)),
+      y = value,
+      color = name) +
+  geom_line() +
+  scale_x_continuous(
+    labels = scales::percent
+  ) +
+  labs(
+    x = "% data truncation",
+    y = "KS distance",
+    color = NULL,
+    subtitle = "Total deaths"
+  ) +
+  ggpal(
+    labels = c("pl_gof" = "Power-law",
+               "ib_gof" = "Inverse Burr",
+               "ln_gof" = "Log-normal")
+  )
+p2 <- recursive_gof_y |>
+  pivot_longer(c(pl_gof, ib_gof, ln_gof)) |>
+  ggplot() +
+  aes(x = (70/95) * rank(xvals) / max(rank(xvals)),
+      y = value,
+      color = name) +
+  geom_line() +
+  scale_x_continuous(
+    labels = scales::percent
+  ) +
+  labs(
+    x = "% data truncation",
+    y = "KS distance",
+    color = NULL,
+    subtitle = "Global deaths per million"
+  ) +
+  ggpal(
+    labels = c("pl_gof" = "Power-law",
+               "ib_gof" = "Inverse Burr",
+               "ln_gof" = "Log-normal")
+  )
+p3 <- recursive_gof_z |>
+  pivot_longer(c(pl_gof, ib_gof, ln_gof)) |>
+  ggplot() +
+  aes(x = (70/95) * rank(xvals) / max(rank(xvals)),
+      y = value,
+      color = name) +
+  geom_line() +
+  scale_x_continuous(
+    labels = scales::percent
+  ) +
+  labs(
+    x = "% data truncation",
+    y = "KS distance",
+    color = NULL,
+    subtitle = "Belligerent deaths per million"
+  ) +
+  ggpal(
+    labels = c("pl_gof" = "Power-law",
+               "ib_gof" = "Inverse Burr",
+               "ln_gof" = "Log-normal")
+  )
+p1 + p2 + p3 +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "bottom")
+```
+
+
+```{r}
+smdt <- dt |>
+  transmute(
+    x = batdeath,
+    y = batdeath / wpop,
+    z = batdeathpc,
+    period = ifelse(year < 1950, 0, 1)
+  ) 
+x1pre <- conpl$new(smdt$z[smdt$period==0])
+x1pre$setXmin(estimate_xmin(x1pre, xmax = 1e9))
+x1pos <- conpl$new(smdt$z[smdt$period==1])
+x1pos$setXmin(estimate_xmin(x1pos, xmax = 1e9))
+x1pre_b <- bootstrap_p(x1pre, xmax = 1e9)
+x1pos_b <- bootstrap_p(x1pos, xmax = 1e9)
+alpha1 <- x1pre_b$bootstraps$pars
+alpha2 <- x1pos_b$bootstraps$pars
+tibble(
+  " " = "$\\alpha$",
+  Diff. = mean(alpha2) - mean(alpha1),
+  SE = sqrt(var(alpha1) + var(alpha2)),
+  Stat = Diff. / SE,
+  "p-value" = 2 * pnorm(abs(Stat), lower.tail = F)
+) -> out1
+```
+
+```{r}
+x2pre <- conlnorm$new(smdt$z[smdt$period==0])
+x2pre$setPars(estimate_pars(x2pre))
+x2pos <- conlnorm$new(smdt$z[smdt$period==1])
+x2pos$setPars(estimate_pars(x2pos))
+x2pre_b <- bootstrap_p(x2pre, xmins = c(0, 0))
+x2pos_b <- bootstrap_p(x2pos, xmins = c(0, 0))
+mulog1 <- x2pre_b$bootstraps$pars1
+mulog2 <- x2pos_b$bootstraps$pars1
+tibble(
+  " " = "$\\mu$-log",
+  Diff. = mean(mulog2) - mean(mulog1),
+  SE = sqrt(var(mulog1) + var(mulog2)),
+  Stat = Diff. / SE,
+  "p-value" = 2 * pnorm(abs(Stat), lower.tail = F)
+)-> out2
+
+```
+
+
+```{r}
+bind_rows(
+  out1, out2
+) |>
+  kbl(
+    escape = F,
+    digits = 2,
+    caption = "Is 1950 a significant change point for war size?",
+    booktabs = T,
+    linesep = ""
+  ) |>
+  add_footnote(
+    notation = "none",
+    label = "Comparison of model fits for pre- and post-1950 battle deaths per country populations in millions. The difference in power-law slopes is shown in the first row. The difference in the mean-log is shown in the second row."
+  )
+```
+
+
+# Implications and Recommendations
+
+
+
+
+
+
+# References
+\setlength{\parindent}{-0.2in}
+\setlength{\leftskip}{0.2in}
+\setlength{\parskip}{8pt}
+\vspace*{-0.2in}
+\noindent
+

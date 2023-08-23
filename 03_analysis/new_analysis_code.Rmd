@@ -1,0 +1,444 @@
+---
+title: "Analysis"
+author: "Miles D. Williams"
+date: '2023-07-19'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = F,
+                      warning = F,
+                      dpi = 500,
+                      out.width = "75%")
+```
+
+
+## Setup
+
+```{r}
+library(tidyverse)
+library(coolorrr)
+set_theme()
+set_palette()
+library(geomtextpath)
+library(patchwork)
+library(estimatr)
+library(texreg)
+```
+
+
+## Data
+
+```{r}
+cy_dt <- read_csv(
+  here::here("01_data", "country-year-war.csv")
+)
+wy_dt <- read_csv(
+  here::here("01_data", "war-year.csv")
+)
+```
+
+
+## Country-year-war analysis
+
+The distribution of war fatalities.
+
+```{r}
+constant <- 1000000
+p1 <- ggplot(cy_dt) +
+  aes(x = 1 + batdeathpc * constant) +
+  geom_histogram(color = "black") +
+  scale_x_continuous(
+    labels = scales::comma
+  ) +
+  labs(
+    x = "Battle deaths per 1 million",
+    y = "Frequency",
+    title = "Unadjusted Scale"
+  )
+p2 <- p1 +
+  scale_x_log10(
+    labels = scales::comma
+  ) +
+  labs(
+    title = "Log-10 Scale"
+  )
+p1 + p2 & 
+  theme(
+    axis.text.x = element_text(
+      angle = 45, hjust = 1
+    )
+  )
+```
+
+```{r}
+f1 <- function(x) 1 - rank(x)/max(rank(x))
+f2 <- function(x) f1(x) / (1 - f1(x))
+p1 <- ggplot(cy_dt) +
+  aes(x = batdeathpc * constant,
+      y = f1(batdeathpc)) +
+  geom_point() +
+  scale_x_log10(
+    labels = scales::comma
+  ) +
+  scale_y_log10()
+p2 <- p1 + 
+  aes(y = f2(batdeathpc))
+p1 + p2
+```
+
+```{r}
+f3 <- function(x, p) ( 1 / (1 - f1(x))^(p))
+ggplot(cy_dt) +
+  aes(x = batdeathpc,
+      y = f3(batdeathpc, 1)) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+
+```{r}
+ggplot(cy_dt) +
+  aes(x = year, y = 1 + batdeathpc * constant) +
+  geom_point(
+    color = "blue",
+    alpha = 0.5
+  ) +
+  scale_y_log10(
+    labels = scales::comma
+  ) +
+  geom_smooth(
+    color = "black",
+    linewidth = .75
+  ) 
+```
+
+```{r}
+lm_robust(
+  log(batdeath) ~ 
+    (v2x_polyarchy) + log(tpop) + log(milex + 1) +
+    log(milper) + log(sdpest),
+  data = wy_dt |>
+    filter(batdeathpc > 0),
+  se_type = "stata"
+) |>
+  screenreg(include.ci = F)
+wy_dt$milper
+summary(wy_dt)
+```
+
+## Conflict level analysis
+
+Why are some wars deadlier than others?
+
+
+First, what is the distribution of war fatalities?
+
+```{r}
+p1 <- ggplot(wy_dt) +
+  aes(x = batdeath) +
+  geom_histogram(color = 'black') +
+  scale_x_continuous(
+    labels = scales::comma
+  ) +
+  labs(
+    x = "Battle Deaths, 1816-2007",
+    y = "Frequency",
+    title = "Raw Values"
+  )
+p2 <- p1 +
+  scale_x_log10(
+    labels = scales::comma
+  ) +
+  labs(
+    title = "Log-10 Scale"
+  )
+p1 + p2 &
+  theme(
+    axis.text.x = element_text(
+      angle = 45, hjust = 1
+    )
+  )
+```
+
+
+Is it log-normal? What is it?
+
+```{r}
+library(poweRlaw)
+x  <- wy_dt$batdeathpc * 1000000
+m1 <- conpl$new(x)
+m2 <- conweibull$new(x)
+m3 <- conlnorm$new(x)
+m4 <- conexp$new(x)
+m1$setPars(estimate_pars(m1))
+m2$setPars(estimate_pars(m2))
+m3$setPars(estimate_pars(m3))
+m4$setPars(estimate_pars(m4))
+compare_distributions(m1, m2)$p_one_sided
+compare_distributions(m2, m1)$p_one_sided
+compare_distributions(m1, m3)$p_one_sided
+compare_distributions(m3, m1)$p_one_sided
+compare_distributions(m2, m3)$p_one_sided
+compare_distributions(m3, m2)$p_one_sided
+compare_distributions(m3, m4)$p_one_sided
+```
+
+It looks like the log-normal distribution is a better fit than the power-law, but I can't reject the null.
+
+```{r}
+scale <- function(x) (x - mean(x)) / sd(x)
+lm_robust(
+  log(batdeath) ~ 
+    scale(v2x_polyarchy) +
+    log(milper) + 
+    log((milex + 1)) +
+    log(sdpest) +
+    I(year > 1939),
+  data = wy_dt,
+  se_type = "stata"
+) |>
+  screenreg()
+```
+
+
+```{r}
+f1 <- function(x) 1 - rank(x) / max(rank(x))
+f2 <- function(x) f1(x) / (1 - f1(x))
+ggplot(wy_dt) +
+  aes(batdeath, f2(batdeath)) +
+  geom_point() +
+  scale_x_log10() +
+  scale_x_log10()
+```
+
+
+
+```{r}
+ks.test(
+  wy_dt$batdeath,
+  "pnorm",
+  mean = mean(log(wy_dt$batdeath)),
+  sd = sd(log(wy_dt$batdeath))
+)
+```
+
+One obvious explanator for war deaths is population size. The larger the populations of the countries fighting a war, the higher the ceiling on war fatalities. However, an interesting empirical observation made by others is that the rate of increase in war deaths is decreasing in population. Braumoeller argues that this is a simple function of military size relative to population. As countries grow in population, the size of their military usually does, too, but at a slower rate. Braumoeller argues that this would explain the unintiuitive link between battle deaths and population size. If his argument is true, we would expect to see two things.
+
+First, if we regress total battle deaths on the total population of the countries fighting a war, we should see a positive relationship, but with diminishing returns to scale. This is because a larger population implies a larger military, but the size of the military will not grow at the same pace as the population.
+
+Second, once we control for military size, the relationship between population and battle deaths should disappear, leaving military size as the primary determinant of fatalities. 
+
+This is exactly what we see below. When we regress the log of battle deaths on the lot of the combined population of the belligerent countries, we see a positive relationship. But, the coefficient is less than 1, implying diminishing returns to scale. Further, when we add the log of military personnel to the model, the relationship between population and battle deaths disappears, leaving military personnel as the primary determinant of battle deaths. Interestingly, the relationship is also one of diminishing returns. Wars fought by countries that possess larger military forces can expect to see more fatalities over all, but the rate of increase is not 1-to-1.
+
+```{r}
+fit1 <- lm_robust(
+  log(batdeath) ~ log(tpop),
+  data = wy_dt,
+  se_type = "stata"
+)
+fit2 <- lm_robust(
+  log(batdeath) ~ log(tpop) + log(milper),
+  data = wy_dt,
+  se_type = "stata"
+)
+screenreg(
+  list(fit1, fit2),
+  include.ci = F
+)
+```
+
+
+```{r}
+wy_dt |>
+  mutate(
+    butter =  - log(rank(milex) / rank(sdpest))
+  ) -> wy_dt
+fit3 <- lm_robust(
+  log(batdeath) ~ log(milper),
+  data = wy_dt,
+  se_type = "stata"
+)
+fit4 <- lm_robust(
+  log(batdeath) ~ log(milper) + log(sdpest),
+  data = wy_dt,
+  se_type = "stata"
+)
+fit5 <- lm_robust(
+  log(batdeath) ~ log(milper) + butter,
+  data = wy_dt,
+  se_type = "stata"
+)
+scale <- function(x) x * 10
+fit6 <- lm_robust(
+  log(batdeath) ~ log(milper) + log(min_polyarchy),
+  data = wy_dt,
+  se_type = "stata"
+)
+fit7 <- lm_robust(
+  log(batdeath) ~ log(milper) + log(med_polyarchy),
+  data = wy_dt,
+  se_type = "stata"
+)
+fit8 <- lm_robust(
+  log(batdeath) ~ log(milper) + log(max_polyarchy),
+  data = wy_dt,
+  se_type = "stata"
+)
+fit9 <- lm_robust(
+  log(batdeath) ~ log(milper) + scale(min_polyarchy) +
+    scale(med_polyarchy) + scale(max_polyarchy),
+  data = wy_dt,
+  se_type = "stata"
+)
+screenreg(
+  list(fit3, fit4, fit5),
+  include.ci = F
+)
+screenreg(
+  list(fit6, fit7, fit8),
+  include.ci = F
+)
+```
+
+
+```{r}
+ggplot(wy_dt) +
+  aes(x = year, y = batdeath) +
+  geom_point() +
+  geom_smooth() +
+  scale_y_log10()
+```
+
+
+
+```{r}
+library(mgcv)
+gam1 <- gam(
+  log(batdeath) ~ 
+    s(year),
+  data = wy_dt
+)
+gam2 <- gam(
+  log(batdeath) ~ s(log(milper)) + s(log(min_polyarchy)) +
+    s(year),
+  data = wy_dt
+)
+gam3 <- gam(
+  log(batdeath) ~ s(log(milper)) + s(log(min_polyarchy)),
+  data = wy_dt
+)
+screenreg(
+  list(gam1, gam2, gam3),
+  include.ci = F
+)
+```
+
+
+```{r}
+library(gratia)
+plot(gam3, resid = T)
+```
+
+```{r}
+ggplot(wy_dt) + 
+  aes(y = log(milper), x = v2x_polyarchy) +
+  geom_point()
+```
+
+```{r}
+gam(
+  log(batdeath) ~ s(log(milper), v2x_polyarchy),
+  data = wy_dt
+) |>
+  vis.gam(theta = 200)
+```
+
+
+```{r}
+resx <- resid(lm(log(milper) ~ log(min_polyarchy), wy_dt))
+resy <- resid(lm(log(batdeath) ~ log(min_polyarchy), wy_dt))
+ggplot() +
+  aes(resx, resy) +
+  geom_point() +
+  geom_smooth(method = "gam") +
+  geom_smooth(
+    method = "lm",
+    color = "red"
+  ) +
+  geom_point(
+    data = tibble(
+      resx, resy, dem = wy_dt$min_polyarchy
+    ) |> slice_min(dem, n = 15),
+    color = "red",
+    size = 3
+  )
+```
+
+
+```{r}
+resx1 <- resid(lm(log(min_polyarchy) ~ log(milper), wy_dt))
+resx2 <- resid(lm(log(min_polyarchy) ~ poly(log(milper), 2), wy_dt))
+resy1 <- resid(lm(log(batdeath) ~ log(milper), wy_dt))
+resy2 <- resid(lm(log(batdeath) ~ poly(log(milper), 2), wy_dt))
+p1 <- ggplot() +
+  aes(resx1, resy1) +
+  geom_point() +
+  geom_smooth(method = "lm")
+p2 <- ggplot() +
+  aes(resx2, resy2) +
+  geom_point() +
+  geom_smooth(method = "lm")
+p1 + p2
+```
+
+```{r}
+p1 <- ggplot(wy_dt) +
+  aes(year, milper) +
+  geom_point() +
+  geom_smooth() +
+  scale_y_log10()
+p2 <- p1 + 
+  aes(y = min_polyarchy)
+p1 + p2
+```
+
+
+```{r}
+lm_jack <- function(formula, data) {
+  orig_fit <- lm(formula, data)
+  coefs <- list()
+  for(i in 1:nrow(data)) {
+    coefs[[i]] <- coef(lm(formula, data[-i, ]))
+  }
+  bind_rows(coefs) |>
+    summarize(
+      across(
+        everything(),
+        list(
+          mean,
+          ~ sqrt(((n() - 1) / n()) * sum((.x - mean(.x))^2))
+        )
+      )
+    ) |>
+    pivot_longer(everything()) |>
+    mutate(
+      term = str_remove(name, "_[0-9]"),
+      stat = rep(c("estimate", "std.error"), len = n())
+    ) |>
+    select(-name) |>
+    pivot_wider(
+      values_from = value,
+      names_from = stat
+    ) |>
+    mutate(
+      statistic = estimate / std.error,
+      bias = round(coef(orig_fit) - estimate, 3)
+    )
+}
+lm_jack(log(batdeath) ~ poly(log(milper), 2) + log(min_polyarchy), wy_dt)
+```
+
+

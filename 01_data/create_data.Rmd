@@ -1,0 +1,153 @@
+---
+title: "New Data Prep"
+author: "Miles D. Williams"
+date: 'Created: 2023-07-19 | Modified `r Sys.Date()`'
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = F,
+                      warning = F)
+```
+
+## Setup
+
+I'll be using the `{peacesciencer}` package to access the data I need. The below code chunk opens the package, in addition to tools in the `{tidyverse}` for data wrangling.
+
+```{r}
+library(tidyverse)
+library(peacesciencer)
+```
+
+## Data Wrangling
+
+### Country-Year-Conflict Data
+
+First, create a directed dyad dataset and add COW data on major international wars. There should be 95 unique conflicts in the dataset.
+
+```{r}
+ddy_dt <- create_dyadyears() |>
+  ## add cow war data
+  left_join(
+    cow_war_inter
+  )
+
+## check that no. of unique wars = 95
+length(na.omit(unique(ddy_dt$warnum))) == 95
+```
+
+Next, I need to convert the data to country-year and then merge in additional economic, politity, and militarization data.
+
+```{r}
+cy_dt <- ddy_dt |>
+  ## select the columns I need
+  select(year, ccode1, warnum, cowinteronset, batdeath1) |>
+  ## only keep observations for years that a war starts
+  filter(cowinteronset == 1) |>
+  ## don't need the onset indicator anymore
+  select(-cowinteronset) |>
+  ## rename
+  rename(ccode = ccode1, batdeath = batdeath1)
+```
+
+Now, I need to add in covariates.
+
+```{r}
+cy_dt <- cy_dt |>
+  ## economic data (surplus domestic product)
+  left_join(cow_sdp_gdp) |>
+  ## military capabilities data
+  left_join(cow_nmc) |>
+  ## democracy data
+  left_join(ccode_democracy)
+cy_dt
+
+## To learn more about these datasets:
+#?cow_sdp_gdp
+#?cow_nmc
+#?ccode_democracy
+```
+
+
+
+Create some additional variables.
+
+```{r}
+cy_dt |>
+  mutate(
+    ## normalize battle deaths by country population
+    batdeathpc = batdeath / (tpop * 1000),
+    ## normalize military expenditures by surplus domestic product
+    milexpsdp = (milex * 1000) / exp(sdpest)
+  ) -> cy_dt
+```
+
+Save as a .csv file:
+
+```{r}
+write_csv(
+  cy_dt,
+  here::here("01_data", "country-year-war.csv")
+)
+```
+
+
+### Conflict-Year Data
+
+Now, let's create a version of the data aggregated to the level of particular wars.
+
+```{r}
+cy_dt |>
+  group_by(warnum) |>
+  summarize(
+    year = min(year),
+    batdeath = sum(batdeath),
+    batdeathpc = batdeath / sum(tpop * 1000),
+    ## sums
+    across(
+      c(tpop, milper, milex),
+      ~ sum(.x, na.rm=T)
+    ),
+    across(
+      c(sdpest, wbgdp2011est),
+      .fns = list(
+        "sum" = ~ sum(exp(.x), na.rm=T),
+        "mea" = ~ mean(exp(.x), na.rm=T),
+        "med" = ~ median(exp(.x), na.rm=T),
+        "min" = ~ min(exp(.x), na.rm=T),
+        "max" = ~ max(exp(.x), na.rm=T)
+      ),
+      .names = "{.fn}_{.col}"
+    ),
+    min_polyarchy = min(v2x_polyarchy, na.rm=T),
+    med_polyarchy = median(v2x_polyarchy, na.rm=T),
+    mea_polyarchy = mean(v2x_polyarchy, na.rm=T),
+    max_polyarchy = max(v2x_polyarchy, na.rm=T),
+    min_polity2 = min(polity2, na.rm=T),
+    min_polity2 = ifelse(min_polity2==Inf, NA, min_polity2),
+    med_polity2 = median(polity2, na.rm=T),
+    mea_polity2 = mean(polity2, na.rm=T),
+    max_polity2 = max(polity2, na.rm=T),
+    max_polity2 = ifelse(max_polity2==-Inf, NA, max_polity2)
+  ) -> wy_dt
+```
+
+Add total population by year:
+
+```{r}
+cow_nmc |>
+  group_by(year) |>
+  summarize(
+    wpop = sum(tpop * 1000, na.rm=T)
+  ) -> world_pop
+wy_dt <- left_join(wy_dt, world_pop)
+```
+
+```{r}
+write_csv(
+  wy_dt,
+  here::here("01_data", "war-year.csv")
+)
+```
+

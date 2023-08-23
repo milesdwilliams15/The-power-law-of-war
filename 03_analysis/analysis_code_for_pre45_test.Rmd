@@ -1,0 +1,396 @@
+---
+title: "Untitled"
+author: "Miles D. Williams"
+date: '2022-12-12'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# set up
+source(here::here("00_setup", "custom.R"))
+source(here::here("00_setup", "helpers_45.R"))
+
+# saving figs
+save_fig <- function(name, height = 4, width = 6.5) {
+  ggsave(
+    here::here("02_figs", name),
+    height = height,
+    width = width
+  )
+}
+```
+
+```{r}
+# data
+if(file.exists(here::here("01_data", "clean_data.csv"))) {
+  Data <- read_csv(here::here("01_data", "clean_data.csv"))
+} else {
+  library(peacesciencer)
+  create_dyadyears(subset_years = 1816:2010) %>%
+    #add_cow_wars(type = "inter") %>%
+    left_join(
+      cow_war_inter,
+      by = c("ccode1", "ccode2", "year")
+    ) %>%
+    add_sdp_gdp() -> Data
+  Data %>%
+    transmute(
+      ccode = ccode1, year, warnum,
+      deaths = batdeath1 + batdeath2,
+      pop = exp(wbpopest1) + exp(wbpopest2)
+    ) -> Data
+  
+  Data %>%
+    group_by(ccode, warnum) %>%
+    summarize(
+      start_year = min(year),
+      end_year = max(year),
+      deaths = max(deaths),
+      pop = max(pop)
+    ) %>%
+    group_by(warnum) %>%
+    summarize(
+      year = min(start_year),
+      durration = max(end_year) - year,
+      deaths = sum(deaths, na.rm=T),
+      pop = sum(pop, na.rm = T)
+    ) %>%
+    ungroup -> Data
+  Data %>%
+    mutate(
+      period = ifelse(year > 1945, "post-1945", "pre-1945"),
+      deaths_pc = deaths / pop
+    ) -> Data
+  write_csv(
+    na.omit(Data),
+    file = here::here("01_data", "clean_data.csv")
+  )
+}
+```
+
+```{r}
+Data %>%
+  group_split(
+    period
+  ) %>%
+  map(
+    ~ ll(.x$deaths_pc)
+  ) -> ll.fits # log-logistic fit
+Data %>%
+  group_split(
+    period
+  ) %>%
+  map(
+    ~ pl(.x$deaths_pc)
+  ) -> pl.fits # power-law fit
+
+ll.fits %>%
+  map_dfr(
+    ~ tibble(
+        term = names(.x$estimate),
+        estimate = .x$estimate,
+        lower = apply(.x$bootstrap, 2, function(x) quantile(x, 0.025))[-3],
+        upper = apply(.x$bootstrap, 2, function(x) quantile(x, 0.975))[-3]
+      )
+  ) %>%
+  mutate(
+    period = rep(c("post-1945", "pre-1945"), each = n()/2)
+  ) -> ll.out # summarized output for log-logistic fit
+pl.fits %>%
+  map_dfr(
+    ~ tibble(
+      term = names(.x$estimate),
+      estimate = .x$estimate,
+      lower = apply(.x$bootstrap, 2, function(x) quantile(x, 0.025))[-3],
+      upper = apply(.x$bootstrap, 2, function(x) quantile(x, 0.975))[-3]
+    )
+  ) %>%
+  mutate(
+    period = rep(c("post-1945", "pre-1945"), each = n()/2)
+  ) -> pl.out # summarized output for power-law fit
+```
+
+
+```{r}
+f <- function(x) exp(x) * 100000000
+ll.out %>%
+  filter(term != "sigma") %>%
+  ggplot() +
+  aes(x = f(estimate),
+      y = period,
+      xmin = f(lower),
+      xmax = f(upper)) +
+  geom_point() +
+  geom_errorbarh(
+    height = 0
+  ) +
+  geom_text(
+    aes(label = scales::comma(f(estimate))),
+    vjust = -1
+  ) +
+  scale_x_continuous(
+    labels = scales::comma
+  ) +
+  labs(
+    x = "Expected deaths per 100 million",
+    y = NULL,
+    caption = "Bootstrapped 95% CIs shown"
+  )
+save_fig("ll_fig_45.png", 3, 6)
+pl.out %>%
+  filter(term!="xmin") %>%
+  ggplot() +
+  aes(x = (estimate),
+      y = period,
+      xmin = (lower),
+      xmax = (upper)) +
+  geom_point() +
+  geom_errorbarh(
+    height = 0
+  ) +
+  geom_text(
+    aes(label = round(estimate, 2)),
+    vjust = -1
+  ) +
+  scale_x_continuous(
+    labels = scales::comma
+  ) +
+  labs(
+    x = expression(hat(beta)),
+    y = NULL,
+    caption = "Bootstrapped 95% CIs shown"
+  )
+save_fig("pl_fig_45.png", 3, 6)
+```
+
+
+```{r}
+library(kableExtra)
+comp_diff <- function(x) {
+  # compute difference
+  est.1 <- x[[1]]$estimate[c("mu", "beta")]
+  est.2 <- x[[2]]$estimate[c("mu", "beta")]
+  dif   <- est.1 - est.2
+  dif   <- dif[!is.na(dif)]
+  
+  # inference
+  boot.1 <- x[[1]]$bootstrap[, names(dif)]
+  boot.2 <- x[[2]]$bootstrap[, names(dif)]
+  boot.d <- boot.1 - boot.2
+  
+  # return table of results
+  tibble(
+    term = names(dif),
+    estimate = dif,
+    lower = quantile(boot.d[,1], 0.025),
+    upper = quantile(boot.d[,1], 0.975),
+    p.value = 2 * min(
+      c(mean(boot.d >= 0),
+        mean(boot.d <= 0))
+    )
+  )
+}
+bind_rows(
+  comp_diff(ll.fits),
+  comp_diff(pl.fits)
+) %>%
+  kable("latex",
+        booktabs = T,
+        caption = "") %>%
+  cat()
+```
+
+```{r}
+Data %>%
+  count(period) -> ns
+1:2 %>%
+  map(
+    ~ {
+      d <- Data %>% group_split(period)
+      d[[.x]] %>%
+        filter(deaths_pc >= pl.fits[[.x]]$estimate[1]) %>%
+        nrow
+    }
+  ) %>%
+  unlist -> pl.ns
+ns %>%
+  mutate(
+    pl.n = pl.ns
+  ) %>%
+  kable("latex",
+        caption = "",
+        booktabs = T) %>%
+  cat
+```
+
+```{r}
+ggplot(Data) +
+  aes(deaths_pc * 100000000) +
+  geom_histogram(color = "black") +
+  scale_x_log10(
+    labels = scales::comma
+  ) +
+  scale_y_continuous(
+    breaks = NULL
+  ) +
+  labs(
+    x = "Deaths per 100 million (in log-space)",
+    y = NULL
+  )
+save_fig("hist.png", 4, 6)
+```
+
+```{r}
+Data %>%
+  group_by(period) %>%
+  mutate(
+    p = PXx(deaths_pc)
+  ) -> Data
+ggplot(Data) +
+  aes(deaths_pc * 100000000,
+      p,
+      color = period,
+      shape = period)+
+  geom_point(
+    alpha = 0.5
+  ) +
+  ggpal() +
+  scale_x_log10(
+    labels = scales::comma
+  ) +
+  scale_y_log10() +
+  geom_smooth(
+    data = Data %>% filter(period == "post-1945") %>%
+      filter(deaths_pc >= pl.fits[[1]]$estimate[1]),
+    method = "lm",
+    se = F,
+    lty = 2,
+    size = 0.7
+  ) + 
+  geom_smooth(
+    data = Data %>% filter(period == "pre-1945") %>%
+      filter(deaths_pc >= pl.fits[[2]]$estimate[1]),
+    method = "lm",
+    se = F,
+    size = 0.7
+  ) +
+  labs(
+    x = "Deaths per 100 million",
+    y = "Pr(X > x)",
+    subtitle = "Power-law Fit",
+    color = NULL,
+    shape = NULL
+  ) -> p1
+ggplot(Data) +
+  aes(deaths_pc * 100000000,
+      p,
+      color = period,
+      shape = period)+
+  geom_point(
+    alpha = 0.5
+  ) +
+  ggpal() +
+  geom_line(
+    data = Data %>%
+      filter(period == "post-1945") %>%
+      mutate(
+        pred = logistic((ll.fits[[1]]$estimate[1] - log(deaths_pc))/
+                       ll.fits[[1]]$estimate[2])
+      ),
+    aes(y = pred),
+    size = .7,
+    lty = 2
+  ) +
+  geom_line(
+    data = Data %>%
+      filter(period == "pre-1945") %>%
+      mutate(
+        pred = logistic((ll.fits[[2]]$estimate[1] - log(deaths_pc))/
+                       ll.fits[[2]]$estimate[2])
+      ),
+    aes(y = pred),
+    size = .7
+  ) +
+  scale_x_log10(
+    labels = scales::comma
+  ) +
+  scale_y_log10() +
+  labs(
+    x = "Deaths per 100 million",
+    y = "Pr(X > x)",
+    subtitle = "Log-logistic Fit",
+    color = NULL,
+    shape = NULL
+  ) +
+  theme(legend.position = "none") -> p2
+library(patchwork)
+p1 + p2 +
+  plot_layout(guides = "collect") &
+  theme(
+    axis.text = element_text(size = 8)
+  )
+save_fig("slopes.png", 4, 7)
+```
+
+```{r}
+f <- function(v, pct) apply(v, 2, function(u) quantile(u, pct))[-3]
+pl.fits %>%
+  map(
+    ~ {
+      .x$estimate[1] <- .x$estimate[1] * 100000000
+      .x$bootstrap[, "xmin"] <- .x$bootstrap[, "xmin"] * 100000000
+      .x
+    }
+  ) -> pl.fits
+ll.fits %>%
+  map(
+    ~ {
+      .x$estimate[1] <- exp(.x$estimate[1]) * 100000000
+      .x$bootstrap[, "mu"] <- exp(.x$bootstrap[, "mu"]) * 100000000
+      .x
+    }
+  ) -> ll.fits
+sum_est <- function(x) {
+  x %>%
+    map_dfr(
+      ~ tibble(
+        term = names(.x$estimate),
+        estimate = paste0(round(.x$estimate, 3),
+                          " [",
+                          round(f(.x$bootstrap, 0.025), 3),
+                          "; ",
+                          round(f(.x$bootstrap, 0.975), 3),
+                          "]")
+      )
+    )
+}
+library(kableExtra)
+bind_rows(
+  sum_est(ll.fits) %>%
+    mutate(model = "log-logistic",
+           period = rep(c("post-1945", "pre-1945"), each = 2)),
+  sum_est(pl.fits) %>%
+    mutate(model = "power-law",
+           period = rep(c("post-1945", "pre-1945"), each = 2))
+) %>%
+  pivot_wider(
+    names_from = period,
+    values_from = estimate
+  ) %>%
+  select(term, 3:4) %>%
+  kable(
+    "latex",
+    caption = "",
+    booktabs = T
+  ) %>%
+  group_rows("Power-Law", 1, 2) %>%
+  group_rows("Logistic", 3, 4) %>%
+  add_footnote("Inference done with 200 bootstrapped samples.",
+               "none") %>%
+  cat()
+```
+
