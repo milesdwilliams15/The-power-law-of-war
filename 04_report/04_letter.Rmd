@@ -1,0 +1,30 @@
+---
+title: "Cover Letter"
+output: pdf_document
+---
+
+Dear Editorial Team at *Conflict Management and Peace Science*,
+
+I am writing to submit my manuscript entitled "Do We Have to Use the Power-law to Study War Size? And Does it Matter?" for consideration for publication in *Conflict Management and Peace Science*. I believe that the research presented in this manuscript aligns with the scope and focus of your esteemed journal, which deals with a range of topics in international and civil conflict. I can confirm that this is an original manuscript and that it is not being considered for publication elsewhere.
+
+In this paper I seek a data-driven answer to a straightforward question: is the long-held commitment to using the power-law to study the sizes of international conflicts justified, and are there viable alternatives? This question is worth asking because the common practice of using the power-law to study long-term trends in war size can yield statistically imprecise results. Further, power-law fits for war size in previous studies support the conclusion that war size is scale-free, meaning methods such as regression anlysis cannot be justified. However, existing studies fail to conduct formal tests that show whether alternative models that provide greater statistical precision and that are consistent with regression analysis are viable alternatives.
+
+In this study, I apply best-practices for model validation and selection for data with thick-tailed distributions that are under-utilized in the peace science literature. In using these methods I consider two alternative data-generating process for war size: the inverse Burr and the log-normal distribution. Both of these models promise greater statistical precision and can accomodate parameterization of covariates. Using the Correlates of War inter-state conflict dataset and three alternative ways of measuring the sizes of wars, I cannot conclusively rule out any of the three proposed models depending on how war size is measured. These results suggest researchers have greater freedom of choice that previously thought; however, further analysis shows this freedom of choice is not free of consequence. I provide pratical advice for how researchers should navigate these consequences when studying conflict sizes.
+
+Prior studies have broached the question of the best distribution for war size before. This study goes beyond these studies in two ways. First, it considers how alternative ways of measuring war size might yield different outcomes with respect to model validation and selection. Second, it illustrates the tangible implications measurement and model choice have for drawing inferences about phenomena such as the "long peace" and identifying possible predictors of conflict size.
+
+Readers of this study may also find the methods used a helpful resource for their own research. They may, in particular, be able to make use of the R code used to graft analysis with the inverse Burr distribution into the existing `{poweRlaw}` software package for analyzing thick-tailed distributions. They may also find the wrapper for implementing an inverse Burr regression model helpful and intuitive to use.
+
+Thank your for your time and consideration. I look forward to the opportunity to contribute to the high-quality content published by *Conflict Management and Peace Science*. 
+
+Sincerely,
+
+\setlength{\parindent}{0in}
+\setlength{\leftskip}{0in}
+\setlength{\parskip}{0pt}
+
+Miles D. Williams, Ph.D.
+
+Visiting Assistant Professor of Data for Political Research
+
+Denison University

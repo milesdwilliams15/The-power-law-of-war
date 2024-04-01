@@ -37,7 +37,7 @@ ddy_dt <- create_dyadyears() |>
 length(na.omit(unique(ddy_dt$warnum))) == 95
 ```
 
-Next, I need to convert the data to country-year and then merge in additional economic, politity, and militarization data.
+Next, I need to convert the data to country-year and then merge in additional economic, polity, and militarization data.
 
 ```{r}
 cy_dt <- ddy_dt |>
@@ -69,25 +69,34 @@ cy_dt
 #?ccode_democracy
 ```
 
+Okay, now there should be some duplicates that arise for wars that have more than two countries involved. I need to drop these.
+
+```{r}
+orig_n <- nrow(cy_dt)
+cy_dt_nodups <- cy_dt |>
+  distinct()
+nodup_n <- nrow(cy_dt_nodups)
+c(original = orig_n, nodups = nodup_n)
+```
 
 
 Create some additional variables.
 
 ```{r}
-cy_dt |>
+cy_dt_nodups |>
   mutate(
     ## normalize battle deaths by country population
     batdeathpc = batdeath / (tpop * 1000),
     ## normalize military expenditures by surplus domestic product
     milexpsdp = (milex * 1000) / exp(sdpest)
-  ) -> cy_dt
+  ) -> cy_dt_nodups
 ```
 
 Save as a .csv file:
 
 ```{r}
 write_csv(
-  cy_dt,
+  cy_dt_nodups,
   here::here("01_data", "country-year-war.csv")
 )
 ```
@@ -98,7 +107,7 @@ write_csv(
 Now, let's create a version of the data aggregated to the level of particular wars.
 
 ```{r}
-cy_dt |>
+cy_dt_nodups |>
   group_by(warnum) |>
   summarize(
     year = min(year),

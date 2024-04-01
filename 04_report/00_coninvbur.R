@@ -150,7 +150,7 @@ setMethod("dist_rand",
             i = 0; N = 0
             tail_prob = pinvburr(xmin, pars[1L], pars[2L], scale = pars[3L], lower.tail = FALSE)
             if ((1 / tail_prob) > 10e10) {
-              stop("It appears that your parameters put in you in the __very__ extreme tail
+              message("It appears that your parameters put in you in the __very__ extreme tail
                      of the inverse Burr distribution. This means it is impossible to generate
                      random numbers in a finite amount of time.")
             }
@@ -200,9 +200,10 @@ coninvburr$methods(
     mle = suppressWarnings(optim(par = theta_0,
                                  x = x,
                                  fn = negloglike))
-    mle$par = exp(mle$par)
                                  # method = "L-BFGS-B",
-                                 # lower = c(-Inf, .Machine$double.eps)))
+                                 # lower = -Inf, 
+                                 # upper = .Machine$double.eps))
+    mle$par = exp(mle$par)
     if (set)
       pars <<- exp(mle$par)
     class(mle) = "estimate_pars"
@@ -213,9 +214,9 @@ coninvburr$methods(
   }
 )
 
-
-
-# need to create a new bootstrap_p function --------------------------------
+#############################################################
+#New bootstrapping method that also incorporates coninvburr
+#############################################################
 
 sample_p_helper = function(i, m, x_lower) {
   ## Total sample size
@@ -322,9 +323,19 @@ ib_bootstrap_p = function(m, xmins = NULL, pars = NULL, xmax = 1e9,
     its = 1:no_of_sims,
     nof = map(
       its, ~ {
-        simx <- dist_rand(m_cpy, n = length(m_cpy$dat))
-        simm <- coninvburr$new(simx)
-        simf <- suppressWarnings(estimate_pars(simm))
+        for(i in 1) {
+          while(TRUE) {
+            #simx <- dist_rand(m_cpy, n = length(m_cpy$dat))
+            simx <- rinvburr(n = length(m_cpy$dat),
+                             shape1 = m_cpy$pars[1],
+                             shape2 = m_cpy$pars[2],
+                             scale = m_cpy$pars[2])
+            simm <- coninvburr$new(simx)
+            simf <- suppressWarnings(try(estimate_pars(simm), 
+                                         silent = T))
+            if(!is(simf, "try-error")) break
+          }
+        }
         simD <- ks.test(
           simx,
           "pinvburr",
@@ -359,6 +370,132 @@ ib_bootstrap_p = function(m, xmins = NULL, pars = NULL, xmax = 1e9,
   class(l) = "bs_p_xmin"
   l
 }
+estimate_lnorm <- function(m) {
+  
+  x <- m$dat[m$dat > m$xmin]
+  
+  lnmle <- function(x, pars) {
+    theLik <- dlnorm(x, pars[1], pars[2])
+    -sum(log(theLik))
+  }
+  optim(
+    par = c(mean(log(x)), sd(log(x))),
+    x = x,
+    fn = lnmle
+    # method = "L-BFGS-B",
+    # lower = c(-Inf, 0),
+    # upper = .Machine$double.eps
+  ) -> out
+  #out$par <- c(out$par[1], exp(out$par[2]))
+  out$par
+}
+
+ln_bootstrap_p = function(m, xmins = NULL, pars = NULL, xmax = 1e9,
+                          no_of_sims = 100, threads = 1,
+                          seed = NULL, distance = "ks") {
+  
+  if (is.null(m$getPars())) {
+    message("Parameters will be initially estimated via estimate_xmin")
+  }
+  
+  m_cpy = m$copy()
+  # time = timer()
+  # time$start()
+  # gof_v = estimate_xmin(m_cpy, xmins = xmins, pars = pars,
+  #                       xmax = xmax, distance = distance)
+  gof_v <- list(gof = NULL)
+  gof_v$gof = suppressWarnings(ks.test(
+    m_cpy$dat,
+    "plnorm",
+    meanlog = m_cpy$pars[1],
+    sdlog = m_cpy$pars[2]
+  )$statistic)
+  #time$stop()
+  if (is.na(gof_v$gof) || is.infinite(gof_v$gof)) {
+    stop("Unable to estimate initial xmin using estimate_xmin(), so we can't bootstrap.")
+  }
+  
+  if (min(m_cpy$dat) > xmax) {
+    stop("The smallest value in your data set is larger than xmax. The xmax
+         parameter is the upper limit of the xmin search space.")
+  }
+  
+  if (max(m_cpy$dat) > xmax) {
+    message("Some of your data is larger than xmax. The xmax parameter is
+            the upper bound of the xmin search space. You could try increasing
+            it. If the estimated values are below xmax, it's probably OK not to
+            worry about this.")
+  }
+  
+  # message("Expected total run time for ", no_of_sims,
+  #         " sims, using ", threads, " threads is ",
+  #         signif(time$get() * no_of_sims / threads, 3), " seconds.")
+  # 
+  if (is.null(m$getPars()) || is.null(m$getXmin())) m_cpy$setXmin(gof_v)
+  
+  x = m_cpy$dat
+  x_lower = x[x < m_cpy$xmin]
+  
+  ## Start clock and parallel bootstrap
+  # time$start()
+  # cl = parallel::makeCluster(threads)
+  # on.exit(stopCluster(cl))
+  
+  ## Set cluster seed
+  #if (!is.null(seed)) parallel::clusterSetRNGStream(cl, seed)
+  
+  #parallel::clusterExport(cl, c("dist_rand", "estimate_xmin"))
+  # nof = sapply(1:no_of_sims,
+  #                 bootstrap_p_helper, m_cpy,
+  #                 x_lower, xmins, pars, xmax, distance)
+  nof = tibble(
+    its = 1:no_of_sims,
+    nof = map(
+      its, ~ {
+        simx <- rlnorm(
+          n = length(m_cpy$dat),
+          meanlog = m_cpy$pars[1],
+          sdlog = m_cpy$pars[2]
+        )
+        simm <- conlnorm$new(simx)
+        simm$setPars(estimate_pars(simm))
+        if(any(simm$pars < 0)) {
+          simm <- conlnorm$new(simx)
+          simm$setXmin(min(m_cpy$dat))
+          simm$setPars(estimate_lnorm(simm))
+        }
+        simD <- ks.test(
+          simx,
+          "plnorm",
+          meanlog = simm$pars[1],
+          sdlog = simm$pars[2]
+        )$statistic
+        tibble(
+          gof = simD,
+          xmin = simm$xmin,
+          pars1 = simm$pars[1],
+          pars2 = simm$pars[2],
+          ntail = length(simm$dat)
+        )
+      }
+    )
+  )
+  ## Stop clock and cluster
+  #total_time = time$get(stop = TRUE) * threads
+  
+  #bootstraps = as.data.frame(t(nof))
+  bootstraps = nof$nof |> bind_rows() |>
+    as.data.frame()
+  l = list(p = sum(bootstraps$gof >= gof_v[["gof"]], na.rm = TRUE) / no_of_sims,
+           gof = gof_v[["gof"]],
+           bootstraps = bootstraps,
+           #sim_time = total_time[[1]] / no_of_sims,
+           seed = seed,
+           package_version = packageVersion("poweRlaw"),
+           distance = distance)
+  class(l) = "bs_p_xmin"
+  l
+}
 
 my_bootstrap_p <- function(m, xmins = NULL, pars = NULL,
                xmax = 1e09, no_of_sims = 100,
@@ -366,6 +503,9 @@ my_bootstrap_p <- function(m, xmins = NULL, pars = NULL,
   if(class(m)%in%"coninvburr") {
     message("Running for 'coninvburr' class, so no parallel bootstrapping.")
     ib_bootstrap_p(m, xmins,pars, xmax, no_of_sims,
+                   threads, seed, distance)
+  } else if(class(m)%in%"conlnorm") {
+    ln_bootstrap_p(m, xmins,pars, xmax, no_of_sims,
                    threads, seed, distance)
   } else {
     bootstrap_p(m, xmins, pars, xmax, no_of_sims,
