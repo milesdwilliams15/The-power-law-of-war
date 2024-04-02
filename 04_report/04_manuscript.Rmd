@@ -67,129 +67,80 @@ dt <- read_csv(
 
 # Introduction
 
-Many claim that the sizes of major interstate conflicts follow the
-power-law, a model that characterizes phenomena with thick-tailed
-distributions. Such data are difficult to study with conventional
-statistics, however a number of innovative methods for making inferences
-and testing hypotheses about trends in the sizes of major wars using the
-power-law model have been introduced in the past decade
-[@braumoeller2019; @cedermanEtAl2011; @cirillo2016statistical;
-@clauset2017enduring; @clauset2018trends; @cunen2020]. Despite these
-innovations, studying data with the power-law also usually requires data
-truncation to ensure the model optimally fits the extreme tail of a
-thick-tailed distribution [@clausetEtAl2009]. This can result in
-effective data loss in excess of 50%, leaving variation in a majority of
-conflicts unexplained and hurting statistical precision for the
-remaining data.[^1] Are these limitations necessary? Are other, more
-conventional, modeling choices really unjustifiable?
+What is the best empirical model for studying trends the sizes of
+international wars? A plurality of scholarship has coalesced around
+using the power-law, a statistical model that characterizes phenomena
+with thick-tailed distributions [@braumoeller2019; @cederman2003;
+@cedermanEtAl2011; @cirillo2016statistical; @clauset2017enduring;
+@clauset2018trends; @spagat2020decline; @spagat2018fundamental].
+Minority examples that deviate from this choice include
+@weisiger2013logics who uses Cox proportional hazard models with
+log-transformations of battle deaths and @cunen2020 who take the
+unconventional approach of using the inverse Burr distribution.[^1]
+Whatever the model of choice, what these studies usually have in common
+is an interest in testing claims about trends in the deadliness of war
+over time and a commitment to faithfully modeling the unusually and
+heavily skewed distribution of war fatalities. What they also have in
+common is what they unfortunately lack: clear evidence that these
+researchers engaged in a replicable and data-based approach to model
+validation and selection.
 
-[^1]: There are some solutions around this problem, but these are rarely
-    applied (at least within the peace science literature).
+[^1]: This is a generalization of the logistic distribution.
 
-Answers to these questions are worth seeking because studies that use
-the power-law to study the sizes of wars do so to answer questions of
-serious normative importance. How likely is a given war to result in the
-deaths of a few thousand or more than one million? Is there such a thing
-as a *long peace* that began in the mid-20th century? Are there
-correlates of war size, or is war size entirely random? Given recent
-escalations in many conflicts across the globe, these questions are more
-timely than ever. According to the Uppsala Conflict Data Program, the
-years 2022 and 2023 have witnessed more global conflicts than any other
-year since the end of the Cold War.[^2] Yet, at a time when data-driven
-guidance is needed, current research yields conflicting conclusions.
-Where some fail to find evidence of statistically detectable changes in
-war size over time [@cirillo2016statistical; @clauset2017enduring;
-@clauset2018trends; @braumoeller2019], others do [@cunen2020]. And where
-some argue that war size is mostly random [@braumoeller2019], others
-claim that factors like democracy can explain why some wars are deadlier
-than others [@cunen2020].
+In this paper, a set of methods proposed and outlined by
+@clausetEtAl2009 for validating the use of the power-law and other
+models of thick-tailed data are applied to the commonly used Correlates
+of War interstate conflict dataset, which is used in many of the studies
+cited above. The results show that the power-law is certainly a
+justifiable modeling choice. However, depending on how war size is
+operationalized, other models (the log-normal and inverse Burr) that
+have better statistical properties and that are amenable to regression
+analysis are also justifiable alternatives. These results call attention
+to the importance of taking a standardized and replicable approach to
+model selection in studies on the sizes of wars.
 
-[^2]: Accessed Nov. 20, 2023: <https://ucdp.uu.se/>
+Additional discussion of the results reveals that even when multiple
+models are justified, researchers should not proceed as though model
+selection can be matter of taste or convenience. A simple replication of
+studies that examine the so-called "long peace" with the Correlates of
+War data shows that whether such a peace is statistically detectable is
+contingent on the model selected. When multiple models are justified,
+researchers should also take practical considerations and research aims
+into consideration. In particular, a straightforward regression analysis
+is not possible with the power-law, but it is in the case of the inverse
+Burr and log-normal models. For researchers interested in implementing
+an inverse Burr regression in particular, the discussion includes an
+example of such a regression. Because commonly used statistical software
+does not usually accommodate an inverse Burr regression, the
+supplementary material of this paper includes R code for implementing an
+inverse Burr model that lets researchers use syntax that mirrors other
+common regression functions such as `lm()` and `glm()`.
 
-The approaches taken by prior studies are not uniform, but what remains
-the same is a commitment to the idea that truly large wars are power-law
-distributed. However, as scholars across a wide range of fields are
-quickly discovering, just because the power-law model can be fit to data
-does not imply that it should. Recent research shows that many events
-such as solar flares and city population sizes that were long-thought to
-follow the power-law are better treated as log-normal [@fazio2015pareto;
-@verbeeckEtAl2019]. Perhaps it is time to question the usefulness of the
-power-law for studying war size as well.
-
-Best-practices for studying data suspected of following the power-law
-exist [@clausetEtAl2009], but these procedures are rarely applied in
-studies of war size. This is remedied in this study, and alongside using
-these methods, the appropriateness of two alternative models is also
-investigated: the log-normal model and the inverse Burr model (a
-power-law friendly but more flexible distributional form). Unlike the
-classic power-law, each of these approaches can be used to fit an entire
-dataset (not just the most extreme events) and is amenable to the
-inclusion of covariates. The findings of this study show that among
-these three alternatives, scholars have more freedom of choice than
-previously thought.
-
-It bears noting that the appropriateness of the power-law for explaining
-conflict has been broached before [@gonzalez2016war; @zwetsloot2018].
-This study goes beyond these studies in two important ways. First, it
-considers the importance of how war size is measured. Using the
-Correlates of War interstate conflict series, the analysis undertaken
-here shows that the choice to normalize war size by population (or not)
-alters conclusions about the best fitting model. Three ways of measuring
-of war size are considered: (1) *severity* of total battle deaths, (2)
-*prevalence* of deaths per global population, and (3) *intensity* of
-deaths per the populations of the countries fighting a war.[^3]
-
-[^3]: This is the typology proposed by @braumoeller2019.
-
-Across measures, the classic power-law cannot be formally rejected as a
-good fit for the data. However, to properly fit the extreme tail of the
-distribution 50-80% data truncation is required, regardless of measure.
-The performance of the log-normal and inverse Burr models, both of which
-can be used without data truncation, varies depending on the measure in
-question. Neither the log-normal nor inverse Burr are a supportable
-alternative when measuring conflict by absolute *severity*. However, the
-inverse Burr cannot be rejected as a good fit when measuring conflict
-deaths by global *prevalence*, and both the inverse Burr and log-normal
-cannot be rejected when measuring deaths by per capita *intensity*. In
-both cases, while the power-law only fits less than half the data, the
-inverse Burr and log-normal can explain *all* the data.
-
-In addition to showing that conflict scholars have freedom of choice in
-studying conflict sizes, the second contribution of this study is that
-it shows that this freedom of choice is not free of consequence. Further
-analysis demonstrates that the choice of model and measure determines
-whether a *long peace* starting in the mid-20th century is statistically
-detectable, whether correlates of war size can be easily parameterized
-(and thus controlled for), and whether said correlates have
-statistically significant relationships with war size. With respect to
-implications for inferences, a *long peace* is not statistically
-detectable using the classic power-law or inverse Burr models,
-regardless of how war size is measured. Conversely, a *long peace* is
-statistically detectable for war death *intensity* when using the
-log-normal model. With respect to modeling correlates of war size via
-regression analysis, both the log-normal and inverse Burr models can
-support the inclusion of covariates like population, military size, and
-democracy. Both approaches yield similar coefficients but provide
-slightly different inferences about the statistical significance of
-predictors of war size. Generally, a larger number of military personnel
-predicts a higher number of battle deaths, as does a larger global
-population. Meanwhile, a larger population of the countries fighting a
-war, as well as higher quality of democracy, predicts fewer battle
-deaths. However, these findings are not consistent across measures of
-conflict size or depending on whether the model was inverse Burr or
-log-normal.
-
-Taken as a whole, this study raises important issues and complications
-for peace scholars to consider. First, the power-law model should not be
-taken for granted when studying war size. Depending on whether size is
-measured in absolute terms or normalized by population, the inverse Burr
-or log-normal will be just as appropriate, explain more of the data,
-provide better statistical precision, and permit parameterization of
-covariates. Second, since the choice of measure will determine model
-selection, by extension it will determine results. This sensitivity to
-measurement and model selection demands further investigation, and some
-advice for how conflict scholars should proceed is provided in the
-concluding section.
+The contribution of this study is primarily methodological, but its
+findings fit within a long line of research on trends in war fatalities
+dating back to the seminal work of Lewis Fry @richardson1948. However,
+despite the question of war size being foundational to the quantitative
+study of war, among the set of issues that occupy conflict scholars
+today, the question has become niche. Contemporary research focuses
+mainly on explaining conflict onset at the dyadic level, while attention
+to larger macro trends often goes overlooked [@braumoeller2021trends].
+However, this issue's marginal status in the literature does not reflect
+its paramount normative weight. Identifying the most appropriate
+statistical model for studying war sizes matters for the simple reason
+that few man-made or natural disasters have the potential to snowball
+into hundreds of thousands or millions of fatalities as does war. This
+issue is also highly relevant to public discourse given the claims of
+public intellectuals like @pinker2011 that war's deadliness is on a
+secular decline, as well as rebuttals from @taleb2010 and
+@braumoeller2019 that attempt to directly refute Pinker's popular
+claims. Given the normative weight of and popular attention paid to the
+question of whether war's lethality is abating, it is important that we
+bring to bear the best scientific tools at our disposal and also
+exercise transparency about the limitations of researcher degrees of
+freedom that enter the equation through the question of model selection
+and measurement operationalization. By promoting a more rigorous
+approach to model selection, the ongoing debate about trends in war size
+can be waged on more solid footing.
 
 The paper proceeds as follows. First, in the next section some of the
 relevant properties of the classic power-law model and alternatives are
@@ -214,7 +165,7 @@ data on the size and duration of historical international conflicts.
 
 # =================================
 # Analysis for section:
-# "The Power Law and Alternatives
+# "The Power Law and Alternatives"
 # =================================
 
 ## In-text percentages for Fig. 1
@@ -230,10 +181,12 @@ interstate wars fought between 1816 and 2007 [@sarkeeswayman2010rw].
 Figure 1 shows the distribution of total battle deaths from the 95 wars
 in the dataset. For ease of interpretation, battle deaths are shown on
 the log-10 scale. It is plain to see that the distribution abides by
-Richardson's Law. The bottom 80% of wars in terms of deadliness account
-for only `r pct`% of total battle deaths in the data. Conversely, the
-top 20% of wars are responsible for `r 100 - pct`% of battle related
-deaths in interstate conflicts. That is a remarkable disparity.
+Richardson's Law. What is notable is that the data show a pattern that
+is far more extreme than the classic Pareto 80/20 rule. The bottom 80%
+of wars in terms of deadliness account for only `r pct`% of total battle
+deaths in the data. Conversely, the top 20% of wars are responsible for
+`r 100 - pct`% of battle related deaths in interstate conflicts. That is
+a remarkable disparity.
 
 ```{r fig.cap="Density plot of total battle deaths from CoW battle series, 1816-2007. The x-axis is on the log-10 scale. The 80th percentile is denoted with a vertical line."}
 
@@ -365,7 +318,7 @@ have black swan tendencies.
 Of course, the classic power-law model is not the only one that can
 capture data with a skewed tail. There are alternatives that have more
 favorable, though less provocative, properties for statistical analysis.
-In an excellent study, @cunen2020 recently used a more general
+In a recent study, @cunen2020 recently used an unconventional
 distributional form known as the inverse Burr to study the CoW battle
 series summarized above. The inverse Burr distribution specifies the
 probability of an event greater than size $x$ as: $$
@@ -373,8 +326,8 @@ probability of an event greater than size $x$ as: $$
 $$ where the parameters $\mu$, $\theta$, and $\alpha$ are strictly
 greater than zero. The parameter $\mu$ is a scaling parameter that
 captures the central tendency of $x$, while $\theta$ and $\alpha$ are
-shape parameters. $\theta$ in particular functions much the same way
-that $\alpha$ does in characterizing the extreme tails of power-law
+shape parameters. Somewhat confusingly, $\theta$ functions much the same
+way that $\alpha$ does in characterizing the extreme tails of power-law
 distributed data. This is because as $x$ increases we have:
 $$\Pr(X > x) \approx \alpha (\mu / x)^\theta. \tag{4}$$
 
@@ -434,7 +387,11 @@ relationship between the inverse CDF and the data in log-log space, as
 shown in Figure 5. Note that the fit is not identical to that of the
 inverse Burr. It is slightly more severe, which leads the log-normal
 model to give a slightly higher probability to smaller events and a
-lower probability to larger events.
+lower probability to larger events. While this distributional form is
+not often considered in the conflict literature, in other fields where
+phenomena of interest have long been argued to follow the power-law, new
+and better data supports the log-normal distribution instead. Research
+on solar flares is one high-profile example [@verbeeckEtAl2019].
 
 ```{r fig.cap="The inverse CDF of log-normal data in unadjusted scale versus log-log scale.", fig.height=3, fig.width=6}
 
@@ -478,9 +435,10 @@ and regression analysis using log-normal data. Similar tools for working
 with inverse Burr models may not always be available. It is, however,
 possible to program these tools by hand, as authors like @cunen2020 do
 in their study. This is also done for this study, and readers interested
-in the programming details can find them in the Code Appendix.[^4]
+in the programming details can find them in the supplementary
+materials.[^2]
 
-[^4]: The R code creates a function called `inbur_reg()` that accepts a
+[^2]: The R code creates a function called `inbur_reg()` that accepts a
     formula object and data just like conventional modeling functions,
     such as `lm()` and `glm()` in base R.
 
@@ -643,6 +601,8 @@ x2 <- coninvburr$new(x)
 x2$setPars(estimate_pars(x2))
 x3 <- conlnorm$new(x)
 x3$setPars(estimate_pars(x3))
+x4 <- dispois$new(x)
+x4$setPars(estimate_pars(x4))
 
 # fits for "all cause mortality"
 y1 <- conpl$new(y)
@@ -651,6 +611,8 @@ y2 <- coninvburr$new(y)
 y2$setPars(estimate_pars(y2))
 y3 <- conlnorm$new(y)
 y3$setPars(estimate_pars(y3))
+y4 <- dispois$new(ceiling(y))
+y4$setPars(estimate_pars(y4))
 
 # fits for risk of war
 z1 <- conpl$new(z)
@@ -659,6 +621,8 @@ z2 <- coninvburr$new(z)
 z2$setPars(estimate_pars(z2))
 z3 <- conlnorm$new(z)
 z3$setPars(estimate_pars(z3))
+z4 <- dispois$new(ceiling(z))
+z4$setPars(estimate_pars(z4))
 ```
 
 ```{r model-fits, fig.height=3, fig.width=9, fig.cap="Visualization of model fits for the data. The empirical inverse CDF is shown over the data in log-log space across panels. The first panel shows results for total battle deaths. The second shows results for battle deaths per global population in millions. The third shows results for battle deaths per population of the countries at war in millions."}
@@ -1124,12 +1088,12 @@ two of these consequences are demonstrated.
 First, different measurement (and by extension, modeling) choices yield
 conflicting conclusions about the so-called long peace. Many scholars
 argue that starting after World War II the international system entered
-an unprecedented period of peace, at least among major powers.[^5] This
+an unprecedented period of peace, at least among major powers.[^3] This
 argument is situated within a broader set of claims known as the
 decline-of-war thesis, which holds that wars over time, in addition to
 becoming less common, are becoming less deadly.
 
-[^5]: See @braumoeller2019 and @cunen2020 for a comprehensive set of
+[^3]: See @braumoeller2019 and @cunen2020 for a comprehensive set of
     citations and summaries.
 
 Some scholars answer in the affirmative on this question [@cunen2020;
@@ -1155,11 +1119,11 @@ distributed data is sometimes incompatible with regression analysis
 [@braumoeller2019; @taleb2010]---after all, it is hard to identify the
 conditional mean of a scale-free response. However, if the data can be
 justifiably treated as log-normal or inverse Burr distributed,
-regression analysis is back on the table.[^6] So, in the analysis that
+regression analysis is back on the table.[^4] So, in the analysis that
 follows, both inverse Burr and log-normal regression models are
 considered, and a few different covariates are included in the analysis.
 
-[^6]: @cunen2020 demonstrate an application with the inverse Burr model.
+[^4]: @cunen2020 demonstrate an application with the inverse Burr model.
 
 These variables were added to the conflict series using the
 `{peacesceincer}` R package [@peacesciencer-package]. They include a
@@ -1473,9 +1437,9 @@ controlling for covariates might change conclusions about the long
 peace. For completeness, these regression models were fit for each of
 the measures of war size despite the fact that the inverse Burr and
 log-normal models could be rejected for battle death severity and the
-log-normal also could be rejected for battle death prevalence.[^7]
+log-normal also could be rejected for battle death prevalence.[^5]
 
-[^7]: However, because of the identities of the model parameters, with
+[^5]: However, because of the identities of the model parameters, with
     the log of the populations of the countries fighting a war as a
     right-hand-side variable, each of the log-normal models are
     equivalent to the model of battle death intensity.
@@ -1766,7 +1730,7 @@ reason for this has to do with the simple fact that in log-log models
 the identities of the model parameters are identical regardless of
 whether a predictor is also a denominator for the outcome. Consider that
 $\log(y / x) = \alpha + \beta \log(x)$ can be rearranged such that
-$\log( y ) = \alpha + (\beta + 1) \log(x)$.[^8] In practice, that means
+$\log( y ) = \alpha + (\beta + 1) \log(x)$.[^6] In practice, that means
 that regressing the log of the ratio of $y$ to $x$ on the log of $x$ is
 functionally equivalent to just regressing the log of $y$ on the log of
 $x$ (the only difference will be whether the slope parameter is $\beta$
@@ -1780,7 +1744,7 @@ for which the log-normal model could not be rejected and for which the
 sign of model comparison tests suggests is a better fit for the data
 (albeit, the estimate was not statistically significant).
 
-[^8]: Since $\log(y / x) \equiv \log(y) - \log(x)$ we can rearrange so
+[^6]: Since $\log(y / x) \equiv \log(y) - \log(x)$ we can rearrange so
     that $\log(y) = \alpha + \beta \log(x) + \log(x)$, which reduces to
     $\log(y) = \alpha + (\beta + 1) \log(x)$.
 
@@ -1863,13 +1827,13 @@ current conflict between Russia and Ukraine. If we feed the the
 log-normal model of conflict severity data for the Russia-Ukraine war,
 the model predicts `r preds[1, 1]` total battle deaths by the war's end
 with lower and upper 95% prediction interval bounds of `r preds[2, 1]`
-and `r preds[3,1]`, respectively.[^9] As of April, the death toll for
+and `r preds[3,1]`, respectively.[^7] As of April, the death toll for
 both sides neared 190,000---a total very close to the model's
 prediction. However, the war is still raging as of this writing, and
 given the bounds of the prediction intervals a death total of greater
 than 1 million by war's end would not be that surprising.
 
-[^9]: This value is produced using the following transformation of the
+[^7]: This value is produced using the following transformation of the
     model predictions (which are on the log-scale) to get the expected
     battle deaths on their original scale:
     $\exp(\hat x + \text{var} [\epsilon_i] \cdot 2^{-1})$.
@@ -1964,7 +1928,7 @@ deadlier than others.
 
 \clearpage
 
-# Code Appendix
+# Supplementary Code Appendix
 
 \singlespacing
 
