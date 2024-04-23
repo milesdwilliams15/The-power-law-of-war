@@ -91,30 +91,44 @@ In this paper, a set of methods proposed and outlined by
 @clausetEtAl2009 for validating the use of the power-law and other
 models of thick-tailed data are applied to the commonly used Correlates
 of War interstate conflict dataset, which is used in many of the studies
-cited above. The results show that the power-law is certainly a
-justifiable modeling choice. However, depending on how war size is
-operationalized, other models (the log-normal and inverse Burr) that
-have better statistical properties and that are amenable to regression
-analysis are also justifiable alternatives. These results call attention
-to the importance of taking a standardized and replicable approach to
-model selection in studies on the sizes of wars.
+cited above. Three statistical models are considered: the power-law, the
+log-normal, and the inverse Burr. Model validation tests fail to reject
+each of these models; however, this varies by how war size is
+operationalized. Three ways war size is measured in the literature are
+considered: total battle deaths, battle deaths per global population,
+and battle deaths per the combined populations of the countries directly
+involved in a war. When war size is measured in total deaths, only the
+power-law cannot be rejected. When war size is normalized by global
+population, the inverse Burr also cannot be rejected. Finally, when war
+size is normalized by belligerent country population, all models cannot
+be rejected.
 
-Additional discussion of the results reveals that even when multiple
-models are justified, researchers should not proceed as though model
-selection can be matter of taste or convenience. A simple replication of
-studies that examine the so-called "long peace" with the Correlates of
-War data shows that whether such a peace is statistically detectable is
-contingent on the model selected. When multiple models are justified,
-researchers should also take practical considerations and research aims
-into consideration. In particular, a straightforward regression analysis
-is not possible with the power-law, but it is in the case of the inverse
-Burr and log-normal models. For researchers interested in implementing
-an inverse Burr regression in particular, the discussion includes an
-example of such a regression. Because commonly used statistical software
-does not usually accommodate an inverse Burr regression, the
-supplementary material of this paper includes R code for implementing an
-inverse Burr model that lets researchers use syntax that mirrors other
-common regression functions such as `lm()` and `glm()`.
+These results show that the power-law is certainly a justifiable
+modeling choice. However, depending on how war size is operationalized,
+other models (like the log-normal and inverse Burr) are also justifiable
+alternatives. This is significant because the log-normal and inverse
+Burr models have some desirable statistical properties that the
+power-law lacks. These models, for example, do not require truncating
+smaller observations in order to optimize the model's fit for the most
+extreme wars in the data. They also are amenable to the parameterization
+of covariates.
+
+Importantly, when multiple models are justified, researchers should not
+proceed as though model selection is a matter of taste or convenience. A
+simple replication of studies that examine the so-called "long peace"
+with the Correlates of War data shows that whether such a peace is
+statistically detectable is contingent on the model selected. When
+multiple models are justified, researchers should also take practical
+considerations and research aims into consideration. In particular, a
+straightforward regression analysis is not possible with the power-law,
+but it is in the case of the inverse Burr and log-normal models. For
+researchers interested in implementing an inverse Burr regression in
+particular, the discussion includes an example of such a regression.
+Because commonly used statistical software does not usually accommodate
+an inverse Burr regression, the supplementary material of this paper
+includes R code for implementing an inverse Burr model that lets
+researchers use syntax that mirrors other common regression functions
+such as `lm()` and `glm()`.
 
 The contribution of this study is primarily methodological, but its
 findings fit within a long line of research on trends in war fatalities
@@ -128,19 +142,23 @@ However, this issue's marginal status in the literature does not reflect
 its paramount normative weight. Identifying the most appropriate
 statistical model for studying war sizes matters for the simple reason
 that few man-made or natural disasters have the potential to snowball
-into hundreds of thousands or millions of fatalities as does war. This
-issue is also highly relevant to public discourse given the claims of
-public intellectuals like @pinker2011 that war's deadliness is on a
+into hundreds of thousands or millions of fatalities as does war.
+
+This issue is also highly relevant to public discourse given the claims
+of public intellectuals like @pinker2011 that war's deadliness is on a
 secular decline, as well as rebuttals from @taleb2010 and
-@braumoeller2019 that attempt to directly refute Pinker's popular
-claims. Given the normative weight of and popular attention paid to the
-question of whether war's lethality is abating, it is important that we
-bring to bear the best scientific tools at our disposal and also
-exercise transparency about the limitations of researcher degrees of
-freedom that enter the equation through the question of model selection
-and measurement operationalization. By promoting a more rigorous
-approach to model selection, the ongoing debate about trends in war size
-can be waged on more solid footing.
+@braumoeller2019 that refute Pinker's claims. This debate could not be
+more timely given a recent upward trend in armed conflict in the world.
+A report by the Peace Research Institute Oslo finds that global
+conflict-related deaths are at a nearly 30 year high
+[@obermeier2023conflict]. Given the normative weight of and popular
+attention paid to the question of whether war's lethality is abating, it
+is important that we bring to bear the best scientific tools at our
+disposal and also exercise transparency about the limitations of
+researcher degrees of freedom that enter the equation through the model
+selection and measurement. By promoting a more rigorous approach to
+model selection, the ongoing debate about trends in war size can be
+waged on more solid footing.
 
 The paper proceeds as follows. First, in the next section some of the
 relevant properties of the classic power-law model and alternatives are
