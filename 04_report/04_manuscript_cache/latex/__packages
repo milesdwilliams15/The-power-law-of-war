@@ -8,16 +8,10 @@ dplyr
 stringr
 forcats
 lubridate
-estimatr
-texreg
 kableExtra
-zoo
-lmtest
-sandwich
 poweRlaw
 actuar
 patchwork
 coolorrr
 future
 furrr
-dotwhisker

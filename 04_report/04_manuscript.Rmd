@@ -34,11 +34,7 @@ knitr::opts_chunk$set(cache=TRUE, echo=FALSE,
 
 ## Packages
 library(tidyverse)
-library(estimatr)
-library(texreg)
 library(kableExtra)
-library(lmtest)
-library(sandwich)
 library(poweRlaw)
 library(actuar)
 library(patchwork)
@@ -47,7 +43,10 @@ theme_set(theme_test())
 set_palette()
 
 ## Read in methods for inverse Burr to use with
-## {poweRlaw} package:
+## {poweRlaw} package. Code for the helper functions
+## in the source file will be made available in a 
+## separate file since the code takes up a lot 
+## of space
 source(
   here::here(
     "04_report",
@@ -80,10 +79,11 @@ unconventional approach of using the inverse Burr distribution.[^1]
 Whatever the model of choice, what these studies usually have in common
 is an interest in testing claims about trends in the deadliness of war
 over time and a commitment to faithfully modeling the unusually and
-heavily skewed distribution of war fatalities. What they also have in
+heavily skewed distribution of war fatalities. What many also have in
 common is what they unfortunately lack: clear evidence that these
 researchers engaged in a replicable and data-based approach to model
-validation and selection.
+validation and selection. This shortcoming is not universally true among
+these studies, but such tests are missing in most.
 
 [^1]: This is a generalization of the logistic distribution.
 
@@ -91,17 +91,19 @@ In this paper, a set of methods proposed and outlined by
 @clausetEtAl2009 for validating the use of the power-law and other
 models of thick-tailed data are applied to the commonly used Correlates
 of War interstate conflict dataset, which is used in many of the studies
-cited above. Three statistical models are considered: the power-law, the
-log-normal, and the inverse Burr. Model validation tests fail to reject
-each of these models; however, this varies by how war size is
-operationalized. Three ways war size is measured in the literature are
-considered: total battle deaths, battle deaths per global population,
-and battle deaths per the combined populations of the countries directly
-involved in a war. When war size is measured in total deaths, only the
-power-law cannot be rejected. When war size is normalized by global
-population, the inverse Burr also cannot be rejected. Finally, when war
-size is normalized by belligerent country population, all models cannot
-be rejected.
+cited above. Three statistical models are tested using these methods:
+the power-law, the log-normal, and the inverse Burr. Model validation
+tests fail to reject each of these models; however, this varies by how
+war size is operationalized. Three ways war size is measured in the
+literature are considered: total battle deaths, battle deaths per global
+population, and battle deaths per the combined populations of the
+countries directly involved in a war. When war size is measured in total
+deaths, the power-law cannot be rejected and the inverse Burr only
+barely escapes rejection. When war size is normalized by global
+population, both the power-law and inverse Burr perform well. Finally,
+when war size is normalized by belligerent country population, all
+models cannot be rejected and the sign on pairwise likelihood ratio
+tests favor the log-normal model.
 
 These results show that the power-law is certainly a justifiable
 modeling choice. However, depending on how war size is operationalized,
@@ -117,18 +119,11 @@ Importantly, when multiple models are justified, researchers should not
 proceed as though model selection is a matter of taste or convenience. A
 simple replication of studies that examine the so-called "long peace"
 with the Correlates of War data shows that whether such a peace is
-statistically detectable is contingent on the model selected. When
-multiple models are justified, researchers should also take practical
-considerations and research aims into consideration. In particular, a
-straightforward regression analysis is not possible with the power-law,
-but it is in the case of the inverse Burr and log-normal models. For
-researchers interested in implementing an inverse Burr regression in
-particular, the discussion includes an example of such a regression.
-Because commonly used statistical software does not usually accommodate
-an inverse Burr regression, the supplementary material of this paper
-includes R code for implementing an inverse Burr model that lets
-researchers use syntax that mirrors other common regression functions
-such as `lm()` and `glm()`.
+statistically detectable is contingent on the model selected and the way
+war size is operationalized. When multiple models are justified,
+researchers should proceed with caution and transparency. Otherwise,
+they may open themselves to criticism that they have selected the
+statistical model that provides the results they were looking for.
 
 The contribution of this study is primarily methodological, but its
 findings fit within a long line of research on trends in war fatalities
@@ -147,9 +142,9 @@ into hundreds of thousands or millions of fatalities as does war.
 This issue is also highly relevant to public discourse given the claims
 of public intellectuals like @pinker2011 that war's deadliness is on a
 secular decline, as well as rebuttals from @taleb2010 and
-@braumoeller2019 that refute Pinker's claims. This debate could not be
-more timely given a recent upward trend in armed conflict in the world.
-A report by the Peace Research Institute Oslo finds that global
+@braumoeller2019 that refute Pinker's claims. This debate also could not
+be more timely given a recent upward trend in armed conflict in the
+world. A report by the Peace Research Institute Oslo finds that global
 conflict-related deaths are at a nearly 30 year high
 [@obermeier2023conflict]. Given the normative weight of and popular
 attention paid to the question of whether war's lethality is abating, it
@@ -452,13 +447,7 @@ software comes pre-packaged with tools for doing statistical inference
 and regression analysis using log-normal data. Similar tools for working
 with inverse Burr models may not always be available. It is, however,
 possible to program these tools by hand, as authors like @cunen2020 do
-in their study. This is also done for this study, and readers interested
-in the programming details can find them in the supplementary
-materials.[^2]
-
-[^2]: The R code creates a function called `inbur_reg()` that accepts a
-    formula object and data just like conventional modeling functions,
-    such as `lm()` and `glm()` in base R.
+in their study.
 
 # Methods for Model Fitting and Selection
 
@@ -469,22 +458,23 @@ previous section.
 
 The first step in the recipe is simply to fit the power-law, as well as
 the other models, to the data. The second step is to perform goodness of
-fit (GOF) tests. @clausetEtAl2009 detail a bootstrapping/simulation
-approach that involves first estimating a distance metric such as the KS
-(Kolmogorov-Smirnov) statistic for the fitted model. Next, using the
-fitted model, simulate new synthetic datasets. The model is then fit to
-the synthetic data and a KS statistic is calculated using the synthetic
-data and the model parameters fit to that specific synthetic dataset. A
-p-value from this test is calculated as the share of times the KS
-distances measured using the simulated data are larger than the
-empirical distance. If the p-value is small then the model in question
-is not a plausible fit for the data. @clausetEtAl2009 recommend
+fit (GOF) tests. @clausetEtAl2009 detail a simulation approach that
+involves first estimating a distance metric such as the KS
+(Kolmogorov-Smirnov) statistic for the fitted model.
+
+Next, using the fitted model, simulate new synthetic datasets. The model
+is then fit to the synthetic data and a KS statistic is calculated using
+the synthetic data and the model parameters fit to that specific
+synthetic dataset. A p-value from this test is calculated as the share
+of times the KS distances measured using the simulated data are larger
+than the empirical distance. If the p-value is small then the model in
+question is not a plausible fit for the data. @clausetEtAl2009 recommend
 $p < 0.1$ as the cutoff.
 
-The third and final step involves direct comparisons of the models being
-considered. This may not be necessary if one or more models are rejected
-in step 2. However, in some cases separate GOF tests will not be
-definitive. It is possible that two or more models provide a good fit
+The final step in the recipe involves direct comparisons of the models
+being considered. This may not be necessary if one or more models are
+rejected in step 2. However, in some cases separate GOF tests will not
+be definitive. It is possible that two or more models provide a good fit
 and none can be rejected. When this is the case, @clausetEtAl2009
 suggest a likelihood ratio (LR) test to formally judge between competing
 models. In particular, they recommend Vuong's test, which is an LR-based
@@ -512,6 +502,26 @@ In sum, the recipe for analyzing the data will consist of three steps:
     rejected.
 3.  Perform LR tests to formally assess whether one model is a better
     fit for the data than another.
+
+It bears noting that other model validation approaches exist.
+@cunen2020, for example, discuss an approach to GOF and model selection
+in their Online Appendix that deviates from the approach outlined above
+by directly incorporating a change-point component into model
+validation.[^2] However, the approach outlined by @clausetEtAl2009 is
+regarded as a reliable approach.
+
+[^2]: @cunen2020 do also test the inverse Burr without a change-point.
+    Notably, while they just fail to reject the inverse Burr as a model
+    of total war deaths (see page 16 of their Online Appendix), this
+    conclusion could not be replicated in the analysis in the next
+    section.
+
+Importantly, to make this approach feasible for the inverse Burr model,
+some additional programming was required. Readers interested in the
+details are welcome to see the R code included in the supplementary
+materials which extends the `{poweRlaw}` R package created for working
+with thick-tailed data to include tests for an inverse Burr
+distribution.
 
 The next section outlines the data and measures that will be used for
 model estimation, validation, and comparison.
@@ -553,33 +563,44 @@ relative terms. *Prevalence* normalizes war deaths by global population
 at the time of a conflict, while *intensity* does so by the populations
 of the countries fighting a war.
 
-There is no right measure. Which is best depends on what question we
-want to answer. *Severity* is useful if we care about how many people in
-total are likely to die in a war, while *prevalence* and *intensity* are
-useful if we care about the relative risk of dying in war. When
-considering relative risk, some scholars prefer to use global population
-as the denominator [@pinker2011] while others prefer to limit the
-denominator to the populations of the countries involved in a war
-[@braumoeller2019]. This choice follows from different goals. Deaths per
-global population (*prevalence*) is akin to a measure of all-cause
-mortality risk from war, meaning it treats war like a public health
-issue. Deaths per the populations of the countries fighting a war
-(*intensity*) treats war like a political activity or behavior that has
-unique consequences for the countries involved.
+This typology is useful, because it provides a succinct way of referring
+to these alternative ways of capturing war size. However, the chosen
+terms are admittedly subjective and, for some, unclear. "Severity" seems
+like a synonym for "intensity," for example. Therefore, to help avoid
+confusion, from here on I will instead refer to these three measures as:
+(1) *total* deaths, (2) *global* deaths per capita, and (3)
+*belligerent* deaths per capita.
+
+Among these three measures, there is no right measure. Which is best
+depends on what question we want to answer. Total deaths is useful if we
+care about how many people are likely to die in a war, while global and
+belligerent deaths per capita are useful if we care about the relative
+risk of dying in war. When considering relative risk, some scholars
+prefer to use global population as the denominator [@pinker2011] while
+others prefer to limit the denominator to the populations of the
+countries involved in a war [@braumoeller2019]. This choice follows from
+different goals. Deaths per global population is akin to a measure of
+all-cause mortality risk from war, meaning it treats war like a public
+health issue. Deaths per the populations of the countries fighting a war
+treats war like a political activity or behavior that has unique
+consequences for the countries involved.
 
 Rather than belabor the merits of one approach over another, the choice
 is made here to use all three, since each quantity can be of interest
 depending on the research question being asked. It is also possible that
 different measures will yield different results about model fit. If this
-is the case, conflict scholars would obviously want to take note.
+is the case, conflict scholars would obviously want to take note. Many
+of the competing claims about the long peace are made not only on the
+basis of alternative models, but also on the basis of one of these
+alternative measures.
 
 The dataset to be analyzed, then, has for each given war $i$ in
-$i = 1, ..., 95$ a measure of *severity*, a measure of *prevalence*, and
-a measure of *intensity*. The normalized measures are scaled to deaths
-per million to make the results more intuitive. The data for population
-come from version 6.0 of the CoW National Military Capabilities dataset
-and were also accessed using the `{peacesciencer}` package
-[@singer1987rcwd; @singeretal1972cdu; @peacesciencer-package].
+$i = 1, ..., 95$ a measure of total deaths, global deaths per capita,
+and belligerent deaths per capita. The normalized measures are scaled to
+deaths per million to make the results more intuitive. The data for
+population come from version 6.0 of the CoW National Military
+Capabilities dataset and were also accessed using the `{peacesciencer}`
+package [@singer1987rcwd; @singeretal1972cdu; @peacesciencer-package].
 
 # Analysis
 
@@ -592,13 +613,12 @@ results from LR tests comparing model fits.
 ## Model Fitting
 
 Figure 6 provides a visual representation of the model fits for each of
-the measures of war size (severity, prevalence, and intensity). Each
-panel is a scatter plot that shows the relationship between the observed
-sizes of wars in the conflict series (x-axis) and the in inverse ECDF of
-war size (y-axis). Values are shown on the log-log scale. The black line
-denotes the power-law fit for all $x \geq x_\text{min}$, the blue curve
-denotes the inverse Burr fit, and the red curve denotes the log-normal
-fit.
+the measures of war size. Each panel is a scatter plot that shows the
+relationship between the observed sizes of wars in the conflict series
+(x-axis) and the in inverse ECDF of war size (y-axis). Values are shown
+on the log-log scale. The black line denotes the power-law fit for all
+$x \geq x_\text{min}$, the blue curve denotes the inverse Burr fit, and
+the red curve denotes the log-normal fit.
 
 ```{r}
 
@@ -649,19 +669,19 @@ z4$setPars(estimate_pars(z4))
 par(mfcol = c(1, 3))
 plot(x1, pch = 19, col = "gray",
      xlab = "War Size", ylab = "Pr(X > x)",
-     main = "Severity")
+     main = "Total Deaths")
 lines(x3, col = "red3")
 lines(x2, col = "steelblue")
 lines(x1, col = "black")
 plot(y1, pch = 19, col = "gray",
      xlab = "War Size", ylab = "Pr(X > x)",
-     main = "Prevalence")
+     main = "Global Deaths per Capita")
 lines(y3, col = "red3")
 lines(y2, col = "steelblue")
 lines(y1, col = "black")
 plot(z1, pch = 19, col = "gray",
      xlab = "War Size", ylab = "Pr(X > x)",
-     main = "Intensity")
+     main = "Belligerent Deaths per Capita")
 lines(z3, col = "red3")
 lines(z2, col = "steelblue")
 lines(z1, col = "black")
@@ -674,11 +694,11 @@ legend(
 )
 ```
 
-For *severity* of war deaths, the best-fitting power-law slope applies
-to all wars that resulted in at least `r scales::comma(x1$xmin)` battle
-deaths (`r round(100 * mean(x1$dat >= x1$xmin), 2)`% of observations)
-with a slope coefficient of `r round(x1$pars, 2)`. This is consistent
-with war *severity* being scale-free in the extreme tail of the
+For total deaths, the best-fitting power-law slope applies to all wars
+that resulted in at least `r scales::comma(x1$xmin)` battle deaths
+(`r round(100 * mean(x1$dat >= x1$xmin), 2)`% of observations) with a
+slope coefficient of `r round(x1$pars, 2)`. This is consistent with
+total war deaths being scale-free in the extreme tail of the
 distribution, which echos previous findings using the CoW conflict
 series.
 
@@ -695,7 +715,7 @@ fitted parameters for the log-normal are
 `r paste0(round(x3$pars[1], 3), " and ", round(x3$pars[2], 3))` for the
 log-mean and log-standard deviation.
 
-For *prevalence* of war deaths, the best-fitting power-law slope applies
+For global deaths per capita, the best-fitting power-law slope applies
 to all wars that resulted in at least `r scales::comma(y1$xmin)` battle
 deaths (`r round(100 * mean(y1$dat >= y1$xmin), 2)`% of observations)
 with a slope coefficient of `r round(y1$pars, 2)`. Again, this is
@@ -704,7 +724,7 @@ distribution.
 
 As shown in the middle panel of Figure 6, the fits for the inverse Burr
 and log-normal in the extreme tail deviate less from the power-law fit
-compared to *severity*. However, the inverse Burr still under-predicts
+compared to total deaths. However, the inverse Burr still under-predicts
 the probability of some of the most severe conflicts relative to the
 power-law, as does the log-normal. The fitted parameters for the inverse
 Burr are
@@ -714,12 +734,13 @@ fitted parameters for the log-normal are
 `r paste0(round(y3$pars[1], 3), " and ", round(y3$pars[2], 3))` for the
 log-mean and log-standard deviation.
 
-Finally, for *intensity* of war deaths, the best-fitting power-law slope
-applies to all wars that resulted in at least `r scales::comma(z1$xmin)`
-battle deaths (`r round(100 * mean(z1$dat >= y1$xmin), 2)`% of
-observations) with a slope coefficient of `r round(z1$pars, 2)`. Yet
-again, this is consistent with war size being scale-free in the extreme
-tail of the distribution.
+Finally, for belligerent deaths per capita, the best-fitting power-law
+slope applies to all wars that resulted in at least
+`r scales::comma(z1$xmin)` battle deaths
+(`r round(100 * mean(z1$dat >= y1$xmin), 2)`% of observations) with a
+slope coefficient of `r round(z1$pars, 2)`. Yet again, this is
+consistent with war size being scale-free in the extreme tail of the
+distribution.
 
 As shown in the left panel of Figure 6, the fits for the inverse Burr
 and log-normal in the extreme tail deviate very little from the
@@ -741,20 +762,20 @@ log-mean and log-standard deviation.
 # "Analysis: Goodness of Fit"
 # ================================
 
-# GOF tests for battle death *severity* using 2,000 bootstraps
+# GOF tests for battle death *severity* using 10,000 bootstraps
 set.seed(1)
 gof1 <- my_bootstrap_p(
   x1,
-  threads = 4, no_of_sims = 2000,
+  threads = 4, no_of_sims = 10000,
   xmins = rep(x1$xmin, 2),
   seed = 1
 )
 gof2 <- my_bootstrap_p(
-  x2, no_of_sims = 2000,
+  x2, no_of_sims = 10000,
   seed = 1
 )
 gof3 <- my_bootstrap_p(
-  x3, no_of_sims = 2000,
+  x3, no_of_sims = 10000,
   threads = 4,
   xmins = rep(min(x), 2),
   seed = 1
@@ -766,13 +787,13 @@ tibble( # report in a table (Table 1)
   "p-value" = c(gof1$p, gof2$p, gof3$p)
 ) |>
   kbl(
-    caption = "GOF Tests for Severity",
+    caption = "GOF tests for total deaths",
     booktabs = T,
     linesep = "",
     digits = 3
   ) |>
   add_footnote(
-    "Based on 2,000 bootstraps.",
+    "Based on 10,000 bootstraps.",
     notation = "none"
   )
 
@@ -782,13 +803,14 @@ Visual inspection of the models creates the impression that, while each
 fits much of the data relatively well, the quality of fit improves for
 the inverse Burr and log-normal when war size is normalized by
 population. This especially looks to be the case when war size is
-measured as *intensity*. This section discusses the results from formal
-GOF tests that provide a more precise estimate for how well these models
-fit each of the measures.
+measured by belligerent deaths per capita. However, it would be unwise
+to simply select a model by *look*. This section discusses the results
+from formal GOF tests that provide a more precise estimate for how well
+these models fit each of the measures.
 
 Table 1 shows estimates from the simulation-based GOF test described
-previously in the paper for each of the models fit using conflict
-severity. Recall that these tests infer goodness of fit by comparing how
+previously in the paper for each of the models fit using total battle
+deaths. Recall that these tests infer goodness of fit by comparing how
 well a model fits the data assuming the model were the true
 data-generating process. For each of the models a KS distance statistic
 was calculated. Then multiple simulated datasets were generated using
@@ -798,18 +820,12 @@ A p-value was then computed by calculating the fraction of the
 simulations where the distance metric was greater than the one
 calculated with the original model estimates and data.
 
-The results show that when conflict is measured in terms of absolute
-severity, only the classic power-law model cannot be formally rejected:
-$D =$ `r round(gof1$gof, 2)` (p-value = `r round(gof1$p, 2)`).
-Conversely, the inverse Burr and log-normal can be rejected. Both have
-p-values $< 0.1$ (though the inverse Burr just narrowly crosses this
-threshold), which is the cutoff recommended by @clausetEtAl2009. That we
-can reject the null that the data follow the inverse Burr is especially
-notable since this was the preferred method of @cunen2020 in studying
-the same CoW data used here. The authors in particular measured war in
-terms of absolute severity. The results presented here do not support
-their approach. When the goal is to study war severity, the classic
-power-law is the only approach that cannot be rejected.
+The results show that when conflict is measured by total deaths, the
+classic power-law model cannot be formally rejected: $D =$
+`r round(gof1$gof, 2)` (p-value = `r round(gof1$p, 2)`). The inverse
+Burr also cannot be rejected, however it only barely fails to meet the
+$p < 0.1$ threshold advised by @clausetEtAl2009. The log-normal model is
+the only one that can be rejected, with a $p \approx 0.000$.
 
 ```{r results='asis'}
 
@@ -817,19 +833,19 @@ power-law is the only approach that cannot be rejected.
 set.seed(1)
 gof1 <- my_bootstrap_p(
   y1,
-  threads = 4, no_of_sims = 2000,
+  threads = 4, no_of_sims = 10000,
   xmins = rep(y1$xmin),
   seed = 1
 )
 gof2 <- my_bootstrap_p(
-  y2, no_of_sims = 2000,
+  y2, no_of_sims = 10000,
   seed = 1
 )
 gof3 <- my_bootstrap_p(
   y3,
   threads = 4,
   xmins = rep(min(y), 2),
-  no_of_sims = 2000, 
+  no_of_sims = 10000, 
   seed = 1
 )
 
@@ -839,26 +855,28 @@ tibble( # report in a table (Table 2)
   "p-value" = c(gof1$p, gof2$p, gof3$p)
 ) |>
   kbl(
-    caption = "GOF Tests for Prevalence",
+    caption = "GOF tests for global deaths per capita",
     booktabs = T,
     linesep = "",
     digits = 3
   ) |>
   add_footnote(
-    "Based on 2,000 bootstraps.",
+    "Based on 10,000 bootstraps.",
     notation = "none"
   )
 
 ```
 
-The results differ when we consider the global prevalence of war deaths.
-Table 2 reports the GOF test results for all the models when fit to
-prevalence. Both the classic power-law and inverse Burr models cannot be
-rejected while the log-normal can. The p-values associated with each of
-the tests are `r round(gof1$p, 2)`, `r round(gof2$p, 2)`, and
-`r round(gof3$p, 2)` respectively. Importantly, while the power-law
-cannot be rejected in the extreme tail of the data, the inverse Burr
-cannot be rejected as the data-generating process for all the data.
+The results are similar when we consider global deaths per capita. Table
+2 reports the GOF test results for all the models when fit to this
+measure of war size. Both the classic power-law and inverse Burr models
+cannot be rejected while the log-normal can. The p-values associated
+with each of the tests are `r round(gof1$p, 2)`, `r round(gof2$p, 2)`,
+and `r round(gof3$p, 2)` respectively. Notably, the inverse Burr makes
+for a much better fit for global deaths per capita than it did for total
+deaths. Where before the model escaped rejection by a fraction of a
+decimal point in its p-value, here it does so with much more breathing
+room.
 
 ```{r results='asis'}
 
@@ -867,18 +885,18 @@ set.seed(1)
 gof1 <- my_bootstrap_p(
   z1,
   threads = 4,
-  no_of_sims = 2000,
+  no_of_sims = 10000,
   xmins = rep(z1$xmin, 2),
   seed = 1
 )
 gof2 <- my_bootstrap_p(
-  z2, no_of_sims = 2000,
+  z2, no_of_sims = 10000,
   seed = 1
 )
 gof3 <- my_bootstrap_p(
   z3,
   threads = 4,
-  no_of_sims = 2000,
+  no_of_sims = 10000,
   xmins = rep(min(z), 2),
   seed = 1
 )
@@ -889,27 +907,24 @@ tibble( # report in table (Table 3)
   "p-value" = c(gof1$p, gof2$p, gof3$p)
 ) |>
   kbl(
-    caption = "GOF Tests for Intensity",
+    caption = "GOF tests for belligerent deaths per capita",
     booktabs = T,
     linesep = "",
     digits = 3
   ) |>
   add_footnote(
-    "Based on 2,000 bootstraps.",
+    "Based on 10,000 bootstraps.",
     notation = "none"
   )
 
 ```
 
-The results differ yet again when considering war intensity. Table 3
-reports GOF test results for each of the models fit using the intensity
-of war deaths per the populations of the countries fighting a war. Here,
-none of the models can be rejected. The p-values associated with each of
-the tests are `r round(gof1$p, 2)`, `r round(gof2$p, 2)`, and
-`r round(gof3$p, 2)` respectively. Again, it is important to note that
-while the classic power-law cannot be rejected in the extreme tail, the
-log-normal and inverse Burr cannot be rejected while also explaining all
-of the data.
+The results differ yet again when considering belligerent deaths per
+capita. Table 3 reports GOF test results for each of the models fit
+using the intensity of war deaths per the populations of the countries
+fighting a war. Here, none of the models can be rejected. The p-values
+associated with each of the tests are `r round(gof1$p, 2)`,
+`r round(gof2$p, 2)`, and `r round(gof3$p, 2)` respectively.
 
 ## Model Comparisons
 
@@ -947,37 +962,41 @@ The results up to now show that the hypothesis that the data are
 power-law distributed in the extreme tail of the distribution cannot be
 rejected, regardless of whether war size is measured in terms of
 absolute severity or in relative terms (prevalence or intensity).
-However, alternatives also cannot be definitively rejected when
-considering battle death prevalence and intensity. In the former case,
-the inverse Burr cannot be rejected while in the latter case, the
-log-normal and the inverse Burr cannot be rejected. Clearly, since
-different alternatives are plausible fits for the data, additional tests
-are required to formally adjudicate which is best.
+However, alternatives also cannot be definitively rejected. The inverse
+Burr only narrowly escaped rejection for total battle deaths, while it
+more definitively failed to be rejected for global and belligerent
+deaths per capita. Further, while the log-normal could be rejected in
+the case of total deaths and global deaths per capita, it could not be
+rejected for belligerent deaths per capita. Clearly, since different
+alternatives are plausible fits for the data, additional tests are
+required to formally adjudicate which is best.
 
 This section shows results from Vuong's [-@vuong1989likelihood]
-likelihood ratio (LR) test, which is a nonnested model comparison test.
-As noted in the methodological discussion in a previous section, a
-limitation of this approach is that it does not factor in the data
-truncation imposed by using the power-law model as compared to the
-alternatives when comparing model fit. However, at minimum, it provides
-a way to quantify how well the alternative models fit the data in the
-extreme tail of the the distribution.
+likelihood ratio (LR) test, which is a non-nested model comparison test.
+As previously noted, a limitation of this approach is that it does not
+factor in the data truncation imposed by using the power-law model as
+compared to the alternatives when comparing model fit. However, at
+minimum, it provides a way to quantify how well the alternative models
+fit the data in the extreme tail of the the distribution.
 
 Up first, Table 4 shows the results from Vuong's test applied to
-pairwise comparisons of the three competing models for conflict
-severity. Recall that only the power-law could not be rejected in the
-previous section, so from a data-driven perspective there already are
-grounds for selecting the power-law for studying war severity in lieu of
-the log-normal or inverse Burr distributions. Even so, the model
-comparisons are worth mentioning, because according to Vuong's test the
-power-law is *not* statistically better than either the log-normal or
-inverse Burr in the extreme tail of the distribution; albeit, the sign
-of the test statistic is positive, which means the likelihood for the
-power-law is greater than the others. Between the inverse Burr and the
-log-normal, the null of Vuong's test can be rejected. The negative sign
-on the test indicates that the inverse Burr performs worse than the
-log-normal; however, again, both of these models were nonetheless
-rejected in the previous set of GOF tests.
+pairwise comparisons of the three competing models for total battle
+deaths. Recall that only the power-law and inverse Burr could not be
+rejected in the previous section, so from a data-driven perspective
+there already are grounds for selecting either of these. It is worth
+testing whether a model comparison test can provide additional guidance
+on which of these surviving models to select. However, according to
+Vuong's test the power-law is *not* statistically better than inverse
+Burr in the extreme tail of the distribution; albeit, the sign of the
+test statistic is positive, which means the likelihood for the power-law
+is greater. Interestingly, even though the log-normal could be rejected,
+it also does not perform statistically worse than the power-law in the
+extreme tail of the data. Even more interesting is the fact that the
+null of Vuong's test can be rejected when comparing the log-normal to
+the inverse Burr model, but the negative sign on the test indicates that
+the inverse Burr performs *worse* than the log-normal. This is
+unexpected because the log-normal model could be rejected in the model
+validation stage whereas the inverse Burr could not.
 
 ```{r results='asis'}
 
@@ -996,7 +1015,7 @@ bind_rows(
     )
   ) |>
   kbl(
-    caption = "Vuong's test for best fitting model for battle death severity.",
+    caption = "Vuong's test for best fitting model for total battle deaths.",
     booktabs = T,
     digits = 3,
     linesep = ""
@@ -1007,8 +1026,8 @@ bind_rows(
   )
 ```
 
-Table 5 shows results from Vuong's test when modeling battle death
-prevalence. In this case, none of the models can be rejected in favor of
+Table 5 shows results from Vuong's test when modeling global deaths per
+capita. In this case, none of the models can be rejected in favor of
 another. Recall again than in the previous GOF tests only the log-normal
 model could be rejected, meaning regardless of the results here, we do
 have a basis for narrowing down our options to either the power-law or
@@ -1033,7 +1052,7 @@ bind_rows(
     )
   ) |>
   kbl(
-    caption = "Vuong's test for best fitting model for battle death prevalence.",
+    caption = "Vuong's test for best fitting model for global deaths per capita.",
     booktabs = T,
     digits = 3,
     linesep = ""
@@ -1045,15 +1064,16 @@ bind_rows(
 ```
 
 Finally, Table 6 shows results from Vuong's test applied to models fit
-to battle death intensity. Recall from the previous section that only in
-the case of war intensity was the null not rejected for each of the
-competing models. The failure to definitively reject at least one of the
-alternatives in the GOF tests makes the results from Vuong's test all
-the more vital in model selection. The estimates here seem to favor the
-log-normal model. In comparisons with the power-law and inverse Burr,
-the log-normal's likelihood in the extreme tail of the distribution is
-higher. Unfortunately, as was the case in modeling battle death
-prevalence, this better performance is not statistically significant.
+to belligerent deaths per capita. Recall from the previous section that
+only in the case of war intensity was the null not rejected for each of
+the competing models. The failure to definitively reject at least one of
+the alternatives in the GOF tests makes the results from Vuong's test
+all the more vital in model selection. The estimates here seem to favor
+the log-normal model. In comparisons with the power-law and inverse
+Burr, the log-normal's likelihood in the extreme tail of the
+distribution is higher. Unfortunately, as was the case in modeling
+battle death prevalence, this better performance is not statistically
+significant.
 
 ```{r results='asis'}
 
@@ -1072,7 +1092,7 @@ bind_rows(
     )
   ) |>
   kbl(
-    caption = "Vuong's test for best fitting model for battle deaths intensity.",
+    caption = "Vuong's test for best fitting model for belligerent deaths per capita.",
     booktabs = T,
     digits = 3,
     linesep = ""
@@ -1085,112 +1105,96 @@ bind_rows(
 
 # Implications
 
-The foregoing analysis shows that there is no definitive best model of
-war size among the three considered. While only the power-law model
-cannot be rejected in the case of absolute battle death severity, it and
-the inverse Burr also cannot be rejected for battle death prevalence,
-and all three models (the power-law, inverse Burr, and log-normal)
-cannot be rejected in the case of war death intensity. Additional model
-comparison tests fail to provide a data-driven answer for which of the
-surviving alternatives should be preferred. While the signs of the tests
-favor the power-law in the case of severity and prevalence and the
-log-normal in the case of intensity, the test statistic is not
-statistically different from zero in each case.
+## Evaluating the Long Peace
+
+The foregoing analysis shows that the power-law and inverse Burr models
+survive the model validation tests when the variable of interest is
+total battle deaths or global deaths per capita. However, the inverse
+Burr only barely escapes rejection at the $p < 0.1$ level. Meanwhile,
+all three models (the power-law, inverse Burr, and log-normal) cannot be
+rejected for belligerent deaths per capita. Additional model comparison
+tests fail to provide a data-driven answer for which of the surviving
+alternatives should be preferred, though the signs on the likelihood
+ratio tests suggest that the power-law may have an advantage over the
+others for total deaths and global deaths per capita and that the
+log-normal may have an advantage over the inverse Burr and power-law for
+belligerent deaths per capita. Most puzzling, however, is the fact that
+the log-normal model is statistically better than the inverse Burr model
+for total deaths even though the inverse Burr was the one that passed
+muster in the model validation step.
 
 It is tempting to stop here and simply conclude that peace scholars have
-greater freedom of choice in studying the sizes of inter-state wars than
-historically presumed. While this is true, it would be a mistake to
-think this freedom of choice is free of consequence. In this section,
-two of these consequences are demonstrated.
+freedom of choice in studying the sizes of inter-state wars; albeit, so
+long that they choose a measure of war size that is consistent with more
+than one data-generating process. While this is true, it would be a
+mistake to think this freedom of choice is free of consequence.
 
-First, different measurement (and by extension, modeling) choices yield
-conflicting conclusions about the so-called long peace. Many scholars
-argue that starting after World War II the international system entered
-an unprecedented period of peace, at least among major powers.[^3] This
-argument is situated within a broader set of claims known as the
-decline-of-war thesis, which holds that wars over time, in addition to
-becoming less common, are becoming less deadly.
+The question that most occupies recent scholarship on war size is
+whether the so-called long peace is statistically detectable beginning
+in the mid-twentieth century. Many scholars argue that starting after
+World War II the international system entered an unprecedented period of
+peace, at least among major powers.[^3] This argument is situated within
+a broader set of claims known as the decline-of-war thesis, which holds
+that wars over time, in addition to becoming less common, are becoming
+less deadly.
 
-[^3]: See @braumoeller2019 and @cunen2020 for a comprehensive set of
-    citations and summaries.
+[^3]: See @braumoeller2019; @braumoeller2021trends; and @cunen2020 for a
+    comprehensive set of citations and summaries.
 
 Some scholars answer in the affirmative on this question [@cunen2020;
-@pinker2011] , while others answer in the negative [@braumoeller2019;
-@clauset2017enduring; @clauset2018trends]. Most point to World War II as
-the relevant turning point, and @cunen2020 recently identified the year
-1950 as the most statistically likely. In the analysis that follows, the
-1950 cutpoint is adopted so that the results are comparable with the
-most recent statement made about the long peace. To illustrate how
-choice of measure and model influences conclusions about the long peace,
-a bootstrapped test like that developed by @braumoeller2019 is conducted
-for the power-law slopes fitted to pre- and post-1950 battle deaths.
+@pinker2011; @spagat2018fundamental; @spagat2020decline] , while others
+answer in the negative [@braumoeller2019; @clauset2017enduring;
+@clauset2018trends]. Most point to World War II as the relevant turning
+point, and @cunen2020 recently identified the year 1950 as the most
+statistically likely. This year was also identified as the most likely
+by @spagat2020decline.
+
+One of the central points of tension in these studies is the choice of
+statistical model for identifying the long peace. As noted earlier,
+@cunen2020, who claim to recover evidence of the long peace, do so by
+using the inverse Burr distribution rather than the power-law. They also
+use total battle deaths as their measure of war size. However, as found
+in the previous section, the inverse Burr model is nearly rejected in a
+GOF test as a likely data-generating process for total battle
+deaths.[^4] Moreover, the sign on the model comparison test favors the
+power-law over the inverse Burr in the extreme tail while both the sign
+and significance of the test favor the log-normal model.
+
+[^4]: As noted earlier, @cunen2020 use a fairly similar GOF test and get
+    a p-value of 0.155 (see page 17 of the Online Appendix), meaning
+    they fail to reject the inverse Burr. This obviously conflicts with
+    the finding here, suggesting the need for more work to help explain
+    why.
+
+But beyond the question of the appropriate statistical model of war size
+is the additional question of how model selection then influences
+whether evidence of the long peace can be recovered. If one model
+supports the long peace while another does not, this demonstrates all
+the more why a replicable data-driven approach to model selection is
+necessary.
+
+To illustrate how choice of measure and model influences conclusions
+about the long peace, a bootstrapped test like that developed by
+@braumoeller2019 is conducted for the power-law slopes fitted to pre-
+and post-1950 battle deaths using each of the measures of war size
+(total deaths, global deaths per capita, and belligerent deaths per
+capita). Though @braumoeller2019 used 1945 as the cutoff in his
+analysis, the 1950 cutoff is used here since it was identified as the
+most probable change point by @cunen2020 and @spagat2020decline.
 Additional bootstrapped tests are performed using the inverse Burr and
-log-normal models. As the results in the next section show, a long peace
-is statistically undetectable with the power-law and the inverse Burr
-regardless of how war size is measured. However, a significant
-difference is identified for war death intensity using the log-normal
-model.
+log-normal models.
 
-The second implication that is demonstrated is the possibility for
-conducting regression analysis of correlates of war size. Power-law
-distributed data is sometimes incompatible with regression analysis
-[@braumoeller2019; @taleb2010]---after all, it is hard to identify the
-conditional mean of a scale-free response. However, if the data can be
-justifiably treated as log-normal or inverse Burr distributed,
-regression analysis is back on the table.[^4] So, in the analysis that
-follows, both inverse Burr and log-normal regression models are
-considered, and a few different covariates are included in the analysis.
-
-[^4]: @cunen2020 demonstrate an application with the inverse Burr model.
-
-These variables were added to the conflict series using the
-`{peacesceincer}` R package [@peacesciencer-package]. They include a
-measure of the "weakest link" in terms of democratic quality, total
-military personnel of the countries fighting a war, global population,
-and the population of the countries fighting a war. Weakest link
-democracy is measured as the minimum democracy score from the Varieties
-of Democracy project among the countries fighting a war
-[@coppedgeetal2020vdem]. Population and military personnel data come
-from the Correlates of War National Material Capabilities dataset
-[@singeretal1972cdu; @singer1987rcwd]. Except for democracy, each of the
-measures is log-transformed to normalize the data. For the log-normal
-model in particular, this transformation also means that the estimates
-for military and population size can be interpreted as elasticities
-since the outcome is also log-transformed prior to estimation.
-
-The results demonstrate that war size is not entirely random. Instead,
-military and population size, as well as democracy are significant
-predictors of how deadly wars can become. While a greater number of
-military personnel and a larger overall global population predict a
-greater number of battle deaths, higher quality of democracy and a
-larger combined population among the countries fighting a war predict
-fewer deaths. Models also include a post-1950 dummy variable. Contrary
-to the findings regarding the long peace in the first analysis below,
-the results show that, controlling for democracy, population, and
-military size, there is a statistically significant decline in the sizes
-of wars beginning in the mid-twentieth century.
-
-## Identifying the "Long-Peace"
-
-First up is the question of the long peace. Tables 7, 8, and 9 report
-results from statistical tests comparing pre-1950 to post-1950 trends in
-conflict size. The estimates in each table are based on each of the
-alternative models of war size. Table 7 shows estimates from power-law
-fits for the data. Following @braumoeller2019, a bootstrapped test is
-performed to assess whether the data pre- and post-1950 have
-statistically different power-law slopes in their extreme tail. Tests
-are done with battle death severity, prevalence, and intensity. Cell
-entries are the different power-law slopes, their difference, and the
-bootstrap p-value. Though @braumoeller2019 used 1945 as the cutoff in
-his analysis, the 1950 cutoff used here was identified as the most
-optimal by @cunen2020. This different year, however, yields similar
-conclusions to Braumoeller's. The power-law slopes pre- and post-1950
-are all less than 2, consistent with battle deaths being scale-free
-regardless of the time period and how conflict size is measured.
-Further, the power-law slopes in the different periods are not
-statistically different. That means we have little evidence that the
-most extreme wars before and after 1950 are generated by a different
-power-law distribution.
+Tables 7, 8, and 9 report results from these statistical tests comparing
+pre-1950 to post-1950 trends in conflict size. The estimates in each
+table are based on each of the alternative models of war size. Table 7
+shows estimates from power-law fits for the data. Cell entries are the
+different power-law slopes, their difference, and the bootstrap p-value.
+The power-law slopes pre- and post-1950 are all less than 2, consistent
+with battle deaths being scale-free regardless of the time period and
+how conflict size is measured. Further, the power-law slopes in the
+different periods are not statistically different. That means we have
+little evidence that the most extreme wars before 1950 are generated by
+a different power-law distribution than wars after 1950.
 
 ```{r}
 
@@ -1314,7 +1318,7 @@ z1pos <- pl_fit(zpos)
 
 # summarize results
 pl_tests <- tibble(
-  Data = c("Severity", "Prevalence", "Intensity"),
+  Data = c("Total Deaths", "Global Deaths pc", "Belligerent Deaths pc"),
   "pre-1950" = c(x1pre$pars, y1pre$pars, z1pre$pars),
   "post-1950" = c(x1pos$pars, y1pos$pars, z1pos$pars),
   Difference = `post-1950` - `pre-1950`,
@@ -1348,7 +1352,15 @@ indicates a change in the expected rate of battle deaths. Cell entries
 in Table 8 are estimates of $\mu$ pre- and post-1950 along with their
 difference and the bootstrapped p-value. Like with the power-law, across
 alternative measures of battle deaths the inverse Burr central tendency
-pre- and post-1950 is not statistically different.
+pre- and post-1950 is not statistically different.[^5]
+
+[^5]: This is not the same test that @cunen2020 use in their analysis.
+    They instead apply a change-point algorithm that assumes a
+    quasi-joint inverse Burr distribution before and after the optimal
+    change-point. This may explain why their results are statistically
+    significant whereas these are not. More research would need to be
+    done to determine if their test is too lenient or if this
+    bootstrapped test is too conservative.
 
 ```{r}
 
@@ -1362,7 +1374,7 @@ z2pos <- ib_fit(zpos)
 
 # summarize results
 ib_tests <- tibble(
-  Data = c("Severity", "Prevalence", "Intensity"),
+  Data = c("Total Deaths", "Global Deaths pc", "Belligerent Deaths pc"),
   "pre-1950" = c(x2pre$pars[3], y2pre$pars[3], z2pre$pars[3]),
   "post-1950" = c(x2pos$pars[3], y2pos$pars[3], z2pos$pars[3]),
   Difference = `post-1950` - `pre-1950`,
@@ -1394,16 +1406,15 @@ kbl(
 Finally, Table 9 shows estimates from bootstrapped tests of the
 difference in the log-mean of battle deaths pre- and post-1950. As with
 the inverse Burr, the parameter $\mu$ (log-mean) captures the central
-tendency of the log-normal distribution. In the cases of battle death
-severity and prevalence, there is no statistically significant
-difference in war size pre- and post-1950. However, in the case of
-battle death intensity, there is. This finding is worth noting because
-only for intensity was the log-normal model not rejected as a plausible
-data-generating process for war size. In addition, though Vuong's test
-could not reject the null that the log-normal was superior to the
-power-law and inverse Burr, the signs of the test nonetheless favored
-the log-normal. What we should make of this is discussed in the final
-section of the paper.
+tendency of the log-normal distribution. In the cases of total battle
+deaths and global deaths per capita, there is no statistically
+significant difference in war size pre- and post-1950. However, in the
+case of belligerent deaths per capita, there is. This finding is worth
+noting because only for belligerent deaths was the log-normal model not
+rejected as a plausible data-generating process for war size. In
+addition, though Vuong's test could not reject the null that the
+log-normal was superior to the power-law and inverse Burr, the signs of
+the test nonetheless favored the log-normal.
 
 ```{r}
 
@@ -1417,7 +1428,7 @@ z3pos <- ln_fit(zpos)
 
 # summarize results
 ln_tests <- tibble(
-  Data = c("Severity", "Prevalence", "Intensity"),
+  Data = c("Total Deaths", "Global Deaths pc", "Belligerent Deaths pc"),
   "pre-1950" = c(x3pre$pars[1], y3pre$pars[1], z3pre$pars[1]),
   "post-1950" = c(x3pos$pars[1], y3pos$pars[1], z3pos$pars[1]),
   Difference = `post-1950` - `pre-1950`,
@@ -1442,507 +1453,125 @@ kbl(
   ) 
 ```
 
-## Parameterizing Correlates of War Size
+The above results show that model selection and choice of measure can
+influence whether the long peace is statistically detectable.
+Importantly, only in the case of the log-normal model and when war size
+is measured as belligerent deaths per capita, is the long peace a
+statistically identifiable trend. This finding raises some important
+questions. On the one hand, it suggests that given enough models and
+options for how to quantify war size, it is possible to go on a
+successful fishing expedition for evidence of the long peace. On the
+other hand, this view may be too cynical, and it suggests (perhaps
+prematurely) that we should reject the one instance of significant
+results out of nine tests as a false positive. Focusing on this question
+misses the point, however. Rather, we should direct our attention to the
+fact that with researcher degrees of freedom comes a responsibility to
+engage in the model validation and selection exercises followed in this
+paper. This provides added transparency that unfortunately many studies
+that test the long peace lack.
 
-The previous section considered how measurement and model choice might
-influence conclusions about the long peace. In this section, regression
-analysis using the inverse Burr and log-normal models is demonstrated.
-Results are shown for each of the measures of war size using the
-explanatory variables: global population and pooled population of the
-countries fighting a war (log), military size (log), and weakest link
-democracy. Dummy variables for post-1950 are also included to assess how
-controlling for covariates might change conclusions about the long
-peace. For completeness, these regression models were fit for each of
-the measures of war size despite the fact that the inverse Burr and
-log-normal models could be rejected for battle death severity and the
-log-normal also could be rejected for battle death prevalence.[^5]
+## Modeling Covariates
 
-[^5]: However, because of the identities of the model parameters, with
-    the log of the populations of the countries fighting a war as a
-    right-hand-side variable, each of the log-normal models are
-    equivalent to the model of battle death intensity.
+While the power-law is a justifiable choice across the measures of war
+size considered in this study, when either the inverse Burr or
+log-normal are supportable alternatives scholars should weigh their
+options carefully for an additional reason beyond the statistical
+implications discussed above. The power-law is not easily amenable to
+regression analysis. In fact, if the power-law slope is consistent with
+scale-free data, regression analysis is completely unjustifiable. This
+is not a limitation with the inverse Burr or log-normal models.
 
-Following @cunen2020 who describe how the inverse Burr model can be
-parameterized to incorporate covariates in its estimation, the inverse
-Burr regression applied here operates by modifying the scaling parameter
-(central tendency) $\mu$ such that
+As @cunen2020 show, the inverse Burr model can be modified to accomodate
+covariates. While an inverse Burr regression requires some additional
+programming to work since most software lack pre-packaged tools for
+making this happen, a log-normal regression is easy enough to estimate
+with standard statistical software, either via maximum likelihood or OLS
+using a log-transformation of the outcome. If researchers choose to go
+this route, they will find ample opportunity to make contributions to
+our understanding of war. While there are a couple exceptions [see
+@cunen2020; @weisiger2013logics], almost no research has been one to
+assess correlates of war severity. Depending on how one wishes to
+operationalize war size, there is nothing preventing scholars from
+engaging in such an analysis.
 
-$$
-\mu_i = \exp(X_i^\top \beta_k) 
-\tag{6}
-$$ In words, $\mu_i$ replaces the constant $\mu$ and is operationalized
-as the exponent of the linear combination of a vector of covariates. The
-exponent is used to ensure $\mu_i > 0$. To estimate the modified inverse
-Burr model, a standard numerical optimizer is used and bootstrapping is
-done for statistical inference. The R code necessary to implement the
-regression is available in the Code Appendix.
+Of course, the fact that the power-law is justifiable for wars in the
+extreme tail of the distribution across measures of war size should also
+be taken seriously. This study could not definitevely rule out the idea
+that large wars are scale-free and thus prone to unpredictably large
+upswings in severity. Therefore, while better behaved statistical models
+are justifiable, the fact that such an extreme distribution may fit the
+data as well should encourage caution when applying tools like
+regression analysis to war size. Going forward, the best way to arrive
+at a more definitive conclusion about the best model for war size will
+be to collect more and better data on conflicts. As @clausetEtAl2009
+show using simulations, when dealing with a sample of size $N \leq 100$,
+it is possible to fail to reject a model as the data-generating process
+for the data when the true data-generating process is some alternative.
+With an $N$ of 95, the CoW dataset is subject to this very problem.
 
-For the log-normal model, each of the measures of war size was
-log-transformed and then regressed on the set of covariates. Model
-parameters were estimated using OLS with robust (HC1) standard errors.
+## Data Explained
 
-The results from the analysis are summarized in Figure 7, which is a
-coefficient plot of the point estimates and their 95% confidence
-intervals for each of the covariates included in the analysis. Inverse
-Burr estimates are in blue and log-normal (OLS) estimates are shown in
-red. The gray column to the left in each panel of the figure shows the
-value of the coefficient with stars denoting the level of statistical
-significance. Going from the left panel of the figure to the right,
-results are shown with severity, prevalence, and intensity as the
-outcome, respectively.
+A final implication that scholars should consider is data truncation.
+While the power-law remains a justifiable data-generating process for
+total battle deaths, global deaths per capita, and belligerent deaths
+per capita, this applies only for the most extreme wars in the data. For
+some of these measures upwards of 50% of the data is left unexplained.
+The inverse Burr and log-normal models provide a solution to this
+problem. If the goal is to maximize statistical precision and provide an
+explanation for the full set of wars in a conflict series, clearly the
+power-law is at a disadvantage.
 
-```{r fig.height=4, fig.width=9, fig.cap="Estimates for parameterized inverse Burr and log-normal models."}
+However, while it is easy enough to quantify the extent of data
+truncation required to fit the power-law to data, there is no
+straightforward way to quantify how this should factor in to model
+selection. It really comes down to the judgment of the researcher.
+Again, this speaks to the necessity of model validation and selection
+tests. These at least provide a replicable and transparent assessment of
+how competing models fit the data. From here, it may be advisable to
+either adopt a model on the basis of strong theoretical arguments or
+else remain agnostic about model choice and simply report results for
+each.
 
-# ======================================================
-# Empirical analysis for section:
-# "Implications: Parameterizing Correlates of War Size"
-# ======================================================
+# Conclusion
 
-# Make a function that will estimate an inverse Burr regression
-inbur_reg <- function(formula, data = NULL, its = 2000) {
-  
-  ## The Data
-  y  <- model.frame(formula, data)[, 1]
-  x  <- model.matrix(formula, data)
-  
-  ## The likelihood
-  inbur_lik <- function(x, y, pars) {
-    b <- matrix(
-      data = pars[1:ncol(x)],
-      nrow = ncol(x),
-      ncol = 1
-    )
-    mu <- exp(x %*% b)
-    alpha <- exp(pars[ncol(x) + 1])
-    theta <- exp(pars[ncol(x) + 2])
-    sum(
-      - log(
-        dinvburr(
-          y, 
-          shape1 = alpha,
-          shape2 = theta,
-          scale = mu
-        )
-      )
-    )
-  }
-  
-  ## Estimation
-  optim(
-    par = rep(0, len = ncol(x) + 2),
-    fn = inbur_lik,
-    x = x,
-    y = y,
-    hessian = F
-  ) -> opt_out
-  
-  ## Bootstrapping
-  tibble(
-    its = 1:its,
-    bout = future_map(
-      its,
-      ~ {
-        bkeep <- sample(1:nrow(x), nrow(x), T)
-        optim(
-          par = rep(0, len = ncol(x) + 2),
-          fn = inbur_lik,
-          x = x[bkeep, ],
-          y = y[bkeep],
-          hessian = F
-        ) -> opt_out
-        tibble(
-          pars = 1:length(opt_out$par),
-          vals = opt_out$par
-        )
-      },
-      .options = furrr_options(seed = T)
-    )
-  ) |>
-    unnest(cols = bout) |>
-    group_by(pars) |>
-    summarize(
-      std.error = sd(vals, na.rm=T)
-    ) -> boot_se
-  
-  list(
-    out = tibble(
-      term = c(colnames(x),
-               "log(alpha)","log(theta)"),
-      estimate = opt_out$par,
-      std.error = boot_se$std.error,
-      statistic = estimate / std.error,
-      p.value = 1 - pnorm(
-        abs(statistic)
-      ) |> round(3)
-    ),
-    logLik = -opt_out$value,
-    dat = model.frame(formula, data)
-  )
-}
+Research on the severity of wars is foundational to the quantitative
+study of conflict [@richardson1948]. Though now a niche area of study in
+the field, questions about the severity of wars have received renewed
+attention both in the literature and in public discourse. A central
+claim much of this research has attempted to test is the statistical
+significance of the long peace which is purported to have begun in the
+second half of the twentieth century. The literature remains divided on
+whether the long peace is a statistically identifiable trend. Part of
+this division is driven by alternative data sources, but many of these
+studies rely on different statistical models of war size as well.
 
-# now estimate models with bootstrapped SEs:
-  # the right-hand side, which includes:
-  # - log of world population
-  # - log of combined population of countries fighting a war
-  # - log of military personnel
-  # - worst V-Dem score among fighting countries
-  # - post 1950 indicator
-rhs <- ~ log(wpop) + log(tpop) + 
-  log(milper) + min_polyarchy + I(year > 1950)
+This note makes a contribution to the conflict literature by
+demonstrating how best-practices of model validation and selection can
+be applied to data on war sizes. By adopting these best practices,
+conflict scholars may hopefully have a better chance of converging on
+issues like the long peace and other explanatory factors of war size.
 
-  # estimate inverse Burr models for each outcome
-set.seed(1)
-ib_fit1 <- inbur_reg(
-  update(rhs, batdeath ~ .), data = dt
-)$out
-ib_fit2 <- inbur_reg(
-  update(rhs, 1e06 * batdeath / wpop ~ .), data = dt
-)$out
-ib_fit3 <- inbur_reg(
-  update(rhs, 1e06 * batdeath / tpop ~ .), data = dt
-)$out
+Importantly, the specific findings of the analysis in this study should
+not be treated as definitive. Different conclusions may follow from
+different datasets or from studying different kinds of conflict, such as
+civil wars. Furthermore, there are other models not considered here that
+might be just as applicable for studying war size. Finally, despite
+efforts to minimize mistakes in data collection, aggregation, and
+analysis in this study, errors may still have been made. In sum,
+scholars should support their modeling choices using their own
+data-driven assessments rather than those reported here or elsewhere.
 
-  # estimate the log-linear models via OLS with robust SEs
-ln_fit1 <- lm_robust(
-  update(rhs, log(batdeath) ~ .), data = dt
-) |> tidy()
-ln_fit2 <- lm_robust(
-  update(rhs, log(1e06 * batdeath / wpop) ~ .), data = dt
-) |> tidy()
-ln_fit3 <- lm_robust(
-  update(rhs, log(1e06 * batdeath / tpop) ~ .), data = dt
-) |> tidy()
-
-  # report the results as a coefficient plot
-set_palette(
-  binary = qual[c(1, 4)],
-  from_coolors = F
-)
-bind_rows(
-  ib_fit1 |> mutate(model = "Inverse Burr",
-                    outcome = "Severity"),
-  ib_fit2 |> mutate(model = "Inverse Burr", 
-                    outcome = "Prevalence"),
-  ib_fit3 |> mutate(model = "Inverse Burr",
-                    outcome = "Intensity"),
-  ln_fit1 |> mutate(model = "Log-normal", 
-                    outcome = "Severity"),
-  ln_fit2 |> mutate(model = "Log-normal", 
-                    outcome = "Prevalence"),
-  ln_fit3 |> mutate(model = "Log-normal", 
-                    outcome = "Intensity")
-) |> filter(
-  !(term %in% c("log(alpha)", "log(theta)", "(Intercept)"))
-) |>
-  mutate(
-    outcome = factor(
-      outcome, levels = c("Severity", "Prevalence", "Intensity")
-    )
-  ) |>
-  select(term:p.value, model:outcome) |>
-  ggplot() +
-  aes(
-    x = estimate,
-    y = term,
-    xmin = estimate - 1.96 * std.error,
-    xmax = estimate + 1.96 * std.error,
-    color = model
-  ) +
-  geom_vline(
-    xintercept = 0,
-    linetype = 2
-  ) +
-  geom_pointrange(
-    position = ggstance::position_dodgev(-.5),
-    size = .3
-  ) +
-  geom_vline(
-    xintercept = -11,
-    color = "gray80",
-    linewidth = 30
-  ) +
-  geom_text(
-    aes(x = -11,
-        label = paste0(round(estimate, 2), 
-                       gtools::stars.pval(p.value))),
-    position = ggstance::position_dodgev(-.75),
-    show.legend = F,
-    fontface = "bold",
-    hjust = 0.2
-  ) +
-  facet_wrap(~ outcome, scales = "free_x") +
-  ggpal(type = "binary") +
-  scale_y_discrete(
-    labels = c("Post-1950", "Military Size (ln)",
-               "Belligerent Pop. (ln)", "Global Pop. (ln)",
-               "Democracy")
-  ) +
-  labs(
-    x = "Coefficient with 95% CIs",
-    y = NULL,
-    color = NULL,
-    caption = "*** p < 0.001, ** p < 0.01, * p < 0.05, . p < 0.1"
-  ) +
-  ggthemes::theme_few() +
-  theme(
-    legend.position = "bottom",
-    strip.text = element_text(
-      size = 16
-    ),
-    axis.text = element_text(
-      size = 14
-    ),
-    axis.title = element_text(
-      size = 14
-    ),
-    legend.text = element_text(
-      size = 14
-    ),
-    panel.grid.major.y = element_line(
-      linetype = 3,
-      color = "gray30"
-    )
-  ) 
-```
-
-There are few differences in the direction and significance of
-covariates across models and outcomes; however, we see the greatest
-heterogeneity across outcomes in the inverse Burr models. First,
-democracy only is a significant predictor of battle deaths in the case
-of global prevalence. The estimate shows that the better the quality of
-democracy in the weakest democracy among those fighting a war, the lower
-the central tendency of battle deaths per global population. With
-respect to severity and intensity, no such relationship is statistically
-detectable.
-
-With respect to global population, the inverse Burr coefficient is
-statistically significant and positive in the case of war death severity
-and intensity; but not prevalence. For the first two outcomes, the
-estimate is positive, suggesting that as the global population has
-increased, the central tendency of battle deaths has increased.
-
-With respect to the populations of the belligerent countries (those
-fighting a war), the inverse Burr coefficient is only statistically
-significant in the case of battle death intensity. The estimate is
-negative, indicating that the larger the overall population pool of the
-countries fighting a war, the smaller the number of battle deaths per
-capita.
-
-Turning to military size, across all inverse Burr models the coefficient
-on military personnel is positive but statistically insignificant;
-though, for battle death severity the estimate approaches significance
-at the $p < 0.1$ level. This is surprising, since one would naturally
-expect wars fought between larger fighting forces to have more overall
-deadly potential.
-
-Finally, the post-1950 indicator is statistically significant across all
-inverse Burr models. This runs contrary to the results shown in the
-previous section. This suggests that once additional covariates are
-controlled for in the analysis, the inverse Burr model is consistent
-with the long peace after all.
-
-Next up are the estimates from the log-normal models. Unlike with the
-inverse Burr estimates, these are less variable across outcomes. The
-reason for this has to do with the simple fact that in log-log models
-(where both the outcome and explanatory variables are log-transformed),
-the identities of the model parameters are identical regardless of
-whether a predictor is also a denominator for the outcome. Consider that
-$\log(y / x) = \alpha + \beta \log(x)$ can be rearranged such that
-$\log( y ) = \alpha + (\beta + 1) \log(x)$.[^6] In practice, that means
-that regressing the log of the ratio of $y$ to $x$ on the log of $x$ is
-functionally equivalent to just regressing the log of $y$ on the log of
-$x$ (the only difference will be whether the slope parameter is $\beta$
-or $\beta$ + 1). The upshot for peace scholars studying variation in the
-sizes of wars is that, as long as the log of pooled belligerent
-population is controlled for in a regression analysis, any of the
-measures of war size can be justifiably studied using a log-log
-specified linear regression model. This is because such a regression is
-functionally equivalent to modeling battle death intensity---an outcome
-for which the log-normal model could not be rejected and for which the
-sign of model comparison tests suggests is a better fit for the data
-(albeit, the estimate was not statistically significant).
-
-[^6]: Since $\log(y / x) \equiv \log(y) - \log(x)$ we can rearrange so
-    that $\log(y) = \alpha + \beta \log(x) + \log(x)$, which reduces to
-    $\log(y) = \alpha + (\beta + 1) \log(x)$.
-
-Turning the the regression estimates, in all log-normal models democracy
-is a significant predictor of conflict size. The better the quality of
-democracy in the weakest democracy fighting a war, the fewer expected
-battle deaths we can expect to see.
-
-For global population, the results differ by outcomes. When the outcome
-is conflict severity, global population is a positive predictor of
-conflict size. Since the results can be interpreted as elasticities, we
-can directly interpret the coefficient as the percentage difference in
-severity per a percent increase in global population. A one percent
-increase in global population predicts a 0.23% increase in conflict
-severity (total battle deaths). When modeling battle death prevalence
-the coefficient switches sign to negative and is statistically
-insignificant. However, when modeling battle death intensity, the
-estimate is again positive and statistically significant. Specifically,
-a one percent increase in global population predicts a 0.83% increase in
-conflict intensity (battle deaths per pooled belligerent population).
-
-Turning from global population to just the population of the countries
-fighting a war (belligerent population), only for conflict intensity do
-we see a statistically significant relationship. In particular, a one
-percent increase in total belligerent population predicts a 1.16%
-decline in conflict intensity.
-
-While having a larger populations predicts fewer deaths per capita,
-having larger fighting forces predicts more fatalities. Across models, a
-one percent increase in the total number of military personnel among the
-countries fighting a war predicts a 0.59% increase in expected battle
-deaths, whether the outcome is measured in terms of severity,
-prevalence, or intensity.
-
-Finally, the estimate for the post-1950 dummy is statistically
-significant and negative. By transforming the coefficient using
-$100 \times [\exp(\beta) -1 ]$, we can directly calculate the percentage
-change in conflict size post-1950 relative to pre-1950. The difference
-is quite substantial. The average conflict size after 1950 is nearly 85%
-lower than pre-1950 levels.
-
-Taken together, these findings suggest that war size is not entirely
-random. Certain factors, like the quality of democracy, population size,
-military size, and period can be used to predict how deadly a war
-between or among a set of countries can become. This suggests several
-possibilities for conflict scholars and researchers. Not only might it
-be possible to test a number of hypotheses about conflict size with
-regression analysis, it also may be feasible to devise forecasts of
-conflict size based on historical data.
-
-```{r}
-
-# =============================================
-# A numerical example using Russia and Ukraine
-# =============================================
-
-ln_fit3 <- lm_robust(
-  update(rhs, log(batdeath) ~ .), data = dt
-)
-newdt <- tibble(
-  min_polyarchy = 0.21,
-  wpop = 7.888 * 1e09,
-  tpop = (143.4 + 43.79) * 1e06,
-  milper = 1.454 * 1e06,
-  year = 2021
-)
-predict(
-  ln_fit3,
-  newdata = newdt,
-  se.fit = T,
-  interval = "prediction"
-)$fit |>
-  apply(1, function(x) {
-    scales::comma(exp(x) + sqrt(ln_fit3$res_var) / 2)
-  }) -> preds
-```
-
-As a simple example, consider an out of sample prediction using the
-current conflict between Russia and Ukraine. If we feed the the
-log-normal model of conflict severity data for the Russia-Ukraine war,
-the model predicts `r preds[1, 1]` total battle deaths by the war's end
-with lower and upper 95% prediction interval bounds of `r preds[2, 1]`
-and `r preds[3,1]`, respectively.[^7] As of April, the death toll for
-both sides neared 190,000---a total very close to the model's
-prediction. However, the war is still raging as of this writing, and
-given the bounds of the prediction intervals a death total of greater
-than 1 million by war's end would not be that surprising.
-
-[^7]: This value is produced using the following transformation of the
-    model predictions (which are on the log-scale) to get the expected
-    battle deaths on their original scale:
-    $\exp(\hat x + \text{var} [\epsilon_i] \cdot 2^{-1})$.
-
-This example highlights an important point: the prediction intervals for
-the Russia-Ukraine war are quite wide. War is a complex phenomenon, so
-predicting its final death toll is hard to do with a high degree of
-precision. The outcome of any one battle is subject to substantial
-randomness. Compounded across multiple battles, the margin of error only
-increases. So, while the results from this analysis suggest that
-variation in war size is explicable in terms of the factors considered
-here, there's still plenty of variation left unexplained.
-
-# Recommendations
-
-Taken together, the findings of this study show that conflict scholars
-have more methodological freedom of choice when analyzing the sizes of
-conflicts than previously thought. However, this study also shows that
-this freedom of choice is not free of consequence. To the contrary, how
-war size is measured determines the appropriateness of alternative
-models. These alternative models in turn determine the statistical
-precision with which hypotheses can be tested and whether regression
-analysis is justifiable. For these reasons, future studies on the sizes
-of international conflicts should be conducted with a fair dose of
-caution and transparency. Conflict scholars can exercise this caution
-and transparency by taking two simple actions.
-
-First, use the best-practices outlined by @clausetEtAl2009 for studying
-thick-tailed distributions. Only by performing model validation and
-comparison tests can researchers have a data-driven justification for
-opting for one model over another. The analysis conducted here suggests
-that the power-law is not the only possible data-generating process for
-war size. Depending on how war size is operationalized, the inverse Burr
-or log-normal are just as appropriate (and possibly more useful).
-However, in future studies scholars should not treat these results as
-the definitive statement on model validation and choice for studying war
-size. Different conclusions may follow from different datasets or from
-studying different kinds of conflict, such as civil wars. Furthermore,
-there are other models not considered here that might be just as
-applicable for studying war size. Finally, despite efforts to minimize
-mistakes in data collection, aggregation, and analysis in this study,
-errors may still have been made. In sum, scholars should support their
-modeling choices using their own data-driven assessments rather than
-those reported here or elsewhere.
-
-The second action scholars should take is to be transparent about how
-model and measurement might influence their results. While different
-scholars may have valid justifications for opting for one measure
-(severity, prevalence, or intensity) or model (power-law, inverse Burr,
-or log-normal) over another, this choice can influence results.
-Therefore, however scholars justify their measure or model of conflict
-size, they should report results using the alternatives as well. This
-added transparency will help researchers guard against claims that their
-choice of measure or model was *ad hoc* rather than theoretically
-informed or justified on the basis of model validation and selection. On
-this point, in the analysis of the long peace presented earlier in this
-paper the long peace was statistically detectable using the log-normal
-model of conflict intensity. In all other instances, this finding failed
-to materialize. Even though it is arguable that the log-normal model is
-the best for studying war intensity, results using other measures and
-models should also be reported so readers can draw their own conclusions
-regarding the results.
-
-Beyond this practical advice, this study points to an enhanced role for
-conflict scholars in policymaking. Though future work should examine
-this future, the analysis presented here shows that models like the
-inverse Burr and log-normal are justifiable alternatives to the
-power-law when studying conflict sizes. These modeling choices further
-support regression analysis. The regression models estimated here show
-that factors like minimum quality of democracy among the countries
-fighting a war, military size, and population are statistically
-significant predictors of war size; albeit, with considerable variation
-in death totals still left unexplained. While war is a complex
-phenomenon that is difficult to predict, with conflict on the rise in
-many parts of the world, policymakers are eager for data-informed
-forecasts about how deadly different conflicts are likely to become.
-While such forecasts will not be perfect, they will provide a rigorous
-and replicable basis for speculating about current or future wars---this
-a service that quantitative conflict scholars are well-positioned to
-provide.
-
-In sum, conflict scholars need not limit themselves to using the
-power-law to study the sizes of international conflicts. By using the
-methods outlined in here, researchers can find data-driven justification
-for alternative models that also grant greater latitude (such as the
-ability to conduct regression analysis) and statistical precision. While
-this new-found freedom comes with consequences that should lead scholars
-to proceed with caution and to exercise transparency, the upshot of this
-freedom is an enhanced capacity to test a richer set of hypotheses
-helping to better explain why some international wars come to be
-deadlier than others.
+It does seem clear, however, that conflict scholars need not limit
+themselves to using the power-law or any one other model to study the
+sizes of international conflicts. Multiple models may be justifiable. By
+using the methods outlined in here, researchers can find data-driven
+justification for alternative models that also grant greater latitude
+(such as the ability to conduct regression analysis) and statistical
+precision. This new-found freedom comes with consequences that should
+lead scholars to proceed with caution and to exercise transparency, but
+the upshot of this freedom is an enhanced capacity to test a richer set
+of hypotheses helping to better explain why some international wars come
+to be deadlier than others.
 
 \clearpage
 
