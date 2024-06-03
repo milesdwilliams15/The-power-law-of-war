@@ -1,0 +1,713 @@
+---
+title: "Do We Have to Use the Power-law to Study War Size? And Does it Matter?"
+format: beamer
+author: "Miles D. Williams"
+date: 31 March 2024
+institute: "*Denison University*^[Visiting Assistant Professor of Data for Political Research. Email: mdwilliams@denison.edu. Website: [milesdwilliams15.github.io](https://milesdwilliams15.github.io/).]"
+bibliography: '../05_ref/ref.bib'
+execute: 
+  echo: false
+  warning: false
+  message: false
+fontsize: 12pt
+---
+
+## The Research Question
+
+\Large What is the best empirical model for studying trends in the sizes of international wars?
+
+## The Research Question
+
+\Large \textit{\textbf{How should we go about evaluating competing empirical models of war size?}}
+
+## Why It Matters
+
+Wars remain one of the few disasters (man-made or natural) that can snowball into hundreds thousands (if not millions) of deaths.
+
+![](images/clipboard-605210953.png)
+
+## Why It Matters
+
+Their sizes have also been controversial to study statistically because of their heavily skewed distribution. The top 20% of wars account for 98.99% of battle deaths according to the CoW dataset.
+
+![](images/clipboard-1309265870.png){fig-align="center" width="3.63in"}
+
+## Why It Matters
+
+Because of its heavy-tail, the distribution of war deaths is conventionally modeled using the power-law, which holds that:
+
+$$
+Pr(X > x) \propto x^{-\alpha}; \quad log[Pr(X > x)] \propto -\alpha log(x), \quad \forall \quad \text{large x}
+$$
+
+![](images/clipboard-2805492274.png)
+
+## Why It Matters
+
+-   Quantifying and explaining the sizes of wars is foundational to quantitative conflict research, but has since become niche.
+
+-   Interest has renewed with the emergence of a debate about the "long peace"
+
+    -   Some argue that trends in war size support the long peace [@cunen2020; @pinker2011; @spagat2018fundamental; @spagat2020decline]
+
+    -   Others fail to identify statistical evidence for it [@braumoeller2019; @clauset2017enduring; @clauset2018trends]
+
+-   Differing data sources partly explain divergence on this issue, but the use of different statistical tools also accounts for it.
+
+## Why It Matters
+
+\Large If we want to move the debate about the long peace in fruitful directions, we need to take a step back and use best practices for model validation and comparison that are under-utilized in the peace science literature.
+
+## What I Did
+
+\large
+
+-   Used best practices outlined by @clausetEtAl2009 for fitting, validating, and comparing models fit to thick-tailed data
+
+-   Applied them to the popular CoW conflict series [@sarkeeswayman2010rw]
+
+-   Used three alternative specifications for war size
+
+## Methods
+
+\large
+
+The procedure proposed by @clausetEtAl2009 is simple:
+
+1.  Fit models to data
+2.  Perform a simulation-based goodness-of-fit test using a distance statistic
+3.  Perform a non-nested likelihood ratio test for model comparison
+
+## Models
+
+\large
+
+I tested out three alternative models:
+
+1.  The power-law [@braumoeller2019; @cederman2003; @cedermanEtAl2011; @cirillo2016statistical; @clauset2017enduring; @clauset2018trends; @spagat2020decline; @spagat2018fundamental]
+2.  The inverse Burr [@cunen2020]
+3.  The log-normal [@verbeeckEtAl2019]
+
+## Data
+
+\large
+
+I performed this procedure with three measures of war size using the CoW international war dataset (N = 95 with coverage from 1816-2007):
+
+1.  Total Battle Deaths
+2.  Global Deaths per Capita (Total / Global Pop)
+3.  Belligerent Deaths per Capita (Total / Belligerent Pop)
+
+Sources: @peacesciencer-package; @sarkeeswayman2010rw; @singeretal1972cdu
+
+## Model Fit
+
+Step one is to fit the models to the data. Depending on how war size is measured, different models seem to fit better or worse.
+
+![](images/clipboard-2796546194.png)
+
+But we shouldn't just evaluate model fit by *look*. We need to engage in a replicable and transparent analysis to quantify goodness-of-fit.
+
+## Test Goodness-of-Fit
+
+```{r}
+#| fig-width: 6
+#| fig-height: 3.5
+library(kableExtra)
+library(tidyverse)
+library(coolorrr)
+set_palette()
+set_theme()
+tibble(
+  model = c(
+    "Power-law",
+    "Inverse Burr",
+    "Log-normal"
+  ),
+  gof = c(
+    0.063,
+    0.135,
+    0.614
+  ),
+  p.value = c(
+    0.868,
+    0.103,
+    0.000
+  ),
+  label = paste0(
+    gof, 
+    " (p = ",
+    format(p.value, sig = 3),
+    ")",
+    gtools::stars.pval(p.value)
+  )
+) |>
+  ggplot() +
+  aes(
+    x = gof,
+    y = model,
+    label = label
+  ) +
+  geom_point(
+    pch = 21,
+    fill = "steelblue"
+  ) +
+  geom_text(
+    vjust = -0.5
+  ) +
+  xlim(c(0, 0.7)) +
+  labs(
+    x = "KS distance statistic",
+    y = NULL,
+    title = "GOF for total battle deaths",
+    subtitle = 
+      paste(
+        "Only the log-normal can be",
+        "rejected"
+      ),
+    caption = 
+      paste(
+        "Can reject the model at the level:\n",
+        "+p < 0.1, *p < 0.05, **p < 0.01,",
+        "***p < 0.001"
+      )
+  ) +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(
+      linetype = 2
+    )
+  )
+```
+
+## Test Goodness-of-Fit
+
+```{r}
+#| fig-height: 3.5
+#| fig-width: 6
+
+tibble(
+  model = c(
+    "Power-law",
+    "Inverse Burr",
+    "Log-normal"
+  ),
+  gof = c(
+    0.063,
+    0.135,
+    0.614
+  ),
+  p.value = c(
+    0.868,
+    0.103,
+    0.000
+  ),
+  label = paste0(
+    gof, 
+    " (p = ",
+    format(p.value, sig = 3),
+    ")",
+    gtools::stars.pval(p.value)
+  )
+) |>
+  ggplot() +
+  aes(
+    x = gof,
+    y = model,
+    label = label
+  ) +
+  geom_point(
+    pch = 21,
+    fill = "steelblue"
+  ) +
+  geom_text(
+    vjust = -0.5
+  ) +
+  annotate(
+    "text",
+    x = 0.35,
+    y = 1,
+    label = "''%<-%'Nearly Rejected'",
+    parse = T
+  ) +
+  xlim(c(0, 0.7)) +
+  labs(
+    x = "KS distance statistic",
+    y = NULL,
+    title = "GOF for total battle deaths",
+    subtitle = 
+      paste(
+        "Only the log-normal can be",
+        "rejected"
+      ),
+    caption = 
+      paste(
+        "Can reject the model at the level:\n",
+        "+p < 0.1, *p < 0.05, **p < 0.01,",
+        "***p < 0.001"
+      )
+  ) +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(
+      linetype = 2
+    )
+  )
+
+```
+
+## Test Goodness-of-Fit
+
+```{r}
+#| fig-width: 6
+#| fig-height: 3.5
+tibble(
+  model = c(
+    "Power-law",
+    "Inverse Burr",
+    "Log-normal"
+  ),
+  gof = c(
+    0.077,
+    0.088,
+    0.259
+  ),
+  p.value = c(
+    0.845,
+    0.498,
+    0.004
+  ),
+  label = paste0(
+    gof, 
+    " (p = ",
+    format(p.value, sig = 3),
+    ")",
+    gtools::stars.pval(p.value)
+  )
+) |>
+  ggplot() +
+  aes(
+    x = gof,
+    y = model,
+    label = label
+  ) +
+  geom_point(
+    pch = 21,
+    fill = "steelblue"
+  ) +
+  geom_text(
+    vjust = -0.5
+  ) +
+  xlim(c(0, 0.7)) +
+  labs(
+    x = "KS distance statistic",
+    y = NULL,
+    title = "GOF for global deaths per capita",
+    subtitle = 
+      paste(
+        "Only the log-normal can be",
+        "rejected"
+      ),
+    caption = 
+      paste(
+        "Can reject the model at the level:\n",
+        "+p < 0.1, *p < 0.05, **p < 0.01,",
+        "***p < 0.001"
+      )
+  ) +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(
+      linetype = 2
+    )
+  )
+```
+
+## Test Goodness-of-Fit
+
+```{r}
+#| fig-width: 6
+#| fig-height: 3.5
+tibble(
+  model = c(
+    "Power-law",
+    "Inverse Burr",
+    "Log-normal"
+  ),
+  gof = c(
+    0.072,
+    0.073,
+    0.057
+  ),
+  p.value = c(
+    0.814,
+    0.144,
+    0.645
+  ),
+  label = paste0(
+    gof, 
+    " (p = ",
+    format(p.value, sig = 3),
+    ")",
+    gtools::stars.pval(p.value)
+  )
+) |>
+  ggplot() +
+  aes(
+    x = gof,
+    y = model,
+    label = label
+  ) +
+  geom_point(
+    pch = 21,
+    fill = "steelblue"
+  ) +
+  geom_text(
+    vjust = -0.5,
+    hjust = 0.25
+  ) +
+  xlim(c(0, 0.7)) +
+  labs(
+    x = "KS distance statistic",
+    y = NULL,
+    title = "GOF for belligerent deaths per capita",
+    subtitle = 
+      paste(
+        "None of the models can be",
+        "rejected"
+      ),
+    caption = 
+      paste(
+        "Can reject the model at the level:\n",
+        "+p < 0.1, *p < 0.05, **p < 0.01,",
+        "***p < 0.001"
+      )
+  ) +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(
+      linetype = 2
+    )
+  )
+```
+
+## Model Comparison
+
+\Large Not all models can be rejected. When this is the case, we should then test whether any model performs statistically better than others.
+
+## Model Comparison
+
+```{r}
+#| fig-width: 6
+#| fig-height: 3.5
+
+library(ggtext)
+tibble(
+  model = c(
+    "Power-law vs. Inverse Burr",
+    "Power-law vs. Log-normal",
+    "Inverse Burr vs. Log-normal"
+  ),
+  llr = c(
+    0.854,
+    0.864,
+    -2.384
+  ),
+  p.value = c(
+    0.393,
+    0.388,
+    0.017
+  ),
+  label = paste0(
+    llr, 
+    " (p = ",
+    format(p.value, sig = 3),
+    ")",
+    gtools::stars.pval(p.value)
+  )
+) |>
+  ggplot() +
+  aes(
+    x = llr,
+    y = model,
+    label = label
+  ) +
+  geom_vline(
+    xintercept = 0,
+    size = 1,
+    color = "gray"
+  ) +
+  geom_pointrange(
+    aes(xmin = 0, xmax = llr),
+    pch = 21,
+    fill = "steelblue"
+  ) +
+  geom_text(
+    vjust = -0.5
+  ) +
+  xlim(c(-3, 1.5)) +
+  labs(
+    x = "Logged likelihood ratio",
+    y = NULL,
+    title = "Vuong's test for total deaths",
+    subtitle = 
+      paste0(
+        "<p>None of the surviving models from ",
+        "the previous GOF tests are statistically</p>",
+        "<p>better. But the log-normal, which was ",
+        "rejected earlier, is statistically</p>",
+        "<p><b><i>better</i></b> than the inverse Burr.</p>"
+      ),
+    caption = 
+      paste(
+        "Can reject the model at the level:\n",
+        "+p < 0.1, *p < 0.05, **p < 0.01,",
+        "***p < 0.001"
+      )
+  ) +
+  theme(
+    panel.grid.major.x = element_line(
+      linetype = 2
+    ),
+    panel.grid.major.y = element_line(
+      linetype = 2
+    ),
+    plot.subtitle = element_markdown()
+  )
+```
+
+## Model Comparison
+
+```{r}
+#| fig-width: 6
+#| fig-height: 3.5
+
+tibble(
+  model = c(
+    "Power-law vs. Inverse Burr",
+    "Power-law vs. Log-normal",
+    "Inverse Burr vs. Log-normal"
+  ),
+  llr = c(
+    0.064,
+    0.343,
+    0.410
+  ),
+  p.value = c(
+    0.949,
+    0.732,
+    0.681
+  ),
+  label = paste0(
+    llr, 
+    " (p = ",
+    format(p.value, sig = 3),
+    ")",
+    gtools::stars.pval(p.value)
+  )
+) |>
+  ggplot() +
+  aes(
+    x = llr,
+    y = model,
+    label = label
+  ) +
+  geom_vline(
+    xintercept = 0,
+    size = 1,
+    color = "gray"
+  ) +
+  geom_pointrange(
+    aes(xmin = 0, xmax = llr),
+    pch = 21,
+    fill = "steelblue"
+  ) +
+  geom_text(
+    vjust = -0.5
+  ) +
+  xlim(c(-.5, .74)) +
+  labs(
+    x = "Logged likelihood ratio",
+    y = NULL,
+    title = "Vuong's test for global death rate",
+    subtitle = 
+      paste0(
+        "<p><b><i>None</i></b> of the surviving models from ",
+        "the previous GOF tests are statistically</p>",
+        "<p>better than the others, but the likelihoods ",
+        "favor the power-law, then the inverse</p>",
+        "<p>Burr over the log-normal.</p>"
+      ),
+    caption = 
+      paste(
+        "Can reject the model at the level:\n",
+        "+p < 0.1, *p < 0.05, **p < 0.01,",
+        "***p < 0.001"
+      )
+  ) +
+  theme(
+    panel.grid.major.x = element_line(
+      linetype = 2
+    ),
+    panel.grid.major.y = element_line(
+      linetype = 2
+    ),
+    plot.subtitle = element_markdown()
+  )
+```
+
+## Model Comparisons
+
+```{r}
+#| fig-width: 6
+#| fig-height: 3.5
+
+tibble(
+  model = c(
+    "Power-law vs. Inverse Burr",
+    "Power-law vs. Log-normal",
+    "Inverse Burr vs. Log-normal"
+  ),
+  llr = c(
+    0.328,
+    -.153,
+    -1.373
+  ),
+  p.value = c(
+    0.743,
+    0.878,
+    0.170
+  ),
+  label = paste0(
+    llr, 
+    " (p = ",
+    format(p.value, sig = 3),
+    ")",
+    gtools::stars.pval(p.value)
+  )
+) |>
+  ggplot() +
+  aes(
+    x = llr,
+    y = model,
+    label = label
+  ) +
+  geom_vline(
+    xintercept = 0,
+    size = 1,
+    color = "gray"
+  ) +
+  geom_pointrange(
+    aes(xmin = 0, xmax = llr),
+    pch = 21,
+    fill = "steelblue"
+  ) +
+  geom_text(
+    vjust = -0.5
+  ) +
+  xlim(c(-1.75, .75)) +
+  labs(
+    x = "Logged likelihood ratio",
+    y = NULL,
+    title = "Vuong's test for belligerent death rate",
+    subtitle = 
+      paste0(
+        "<p><b><i>None</i></b> of the surviving models from ",
+        "the previous GOF tests are statistically</p>",
+        "<p>better than the others, but the likelihoods ",
+        "favor the log-normal, then the power-</p>",
+        "<p>law over the inverse Burr.</p>"
+      ),
+    caption = 
+      paste(
+        "Can reject the model at the level:\n",
+        "+p < 0.1, *p < 0.05, **p < 0.01,",
+        "***p < 0.001"
+      )
+  ) +
+  theme(
+    panel.grid.major.x = element_line(
+      linetype = 2
+    ),
+    panel.grid.major.y = element_line(
+      linetype = 2
+    ),
+    plot.subtitle = element_markdown()
+  )
+```
+
+## Summary of Findings
+
+\Large \textbf{All three models are justifiable:}
+
+-   Total battle deaths: *power-law* and *inverse Burr* (barely)
+
+-   Global death rate: *power-law* and *inverse Burr*
+
+-   Belligerent death rate: *power-law*, *inverse Burr*, and *log-normal*
+
+\textbf{None of the surviving models is statistically better than the others.}
+
+## Implications
+
+\Large \textbf{How you measure war size determines which models may be a justifiable analysis tool.}
+
+## Implications
+
+\large
+
+-   When multiple models are justifiable, choosing one model over another may influence results.
+
+-   Statistical precision and an ability to model covariates varies by models as well.
+
+## The measure and model may influence results
+
+\large
+
+-   I replicated prior studies on the long peace using the recently proposed 1950 cutpoint in conflict severity [@cunen2020; @spagat2018fundamental].
+
+-   Failed to find statistical support for the long peace, except when using the log-normal model and the belligerent death rate.
+
+-   When confronted with many justifiable choices, we should be wary of *p-hacking*.
+
+## Do we want to explain all the data?
+
+\large
+
+-   Best-practice with the power-law requires fitting a power-law slope to the most extreme observations in a distribution and ignoring smaller events.
+
+-   Data truncation can often exceed 50% of the data.
+
+-   This can hurt statistical precision and leave many data points unexplained.
+
+-   The inverse Burr and log-normal don't have this problem.
+
+## Do we want to justify regression analysis?
+
+\large
+
+-   The power-law (especially if its slope parameter is less than 2) makes regression analysis unjustifiable.
+
+-   In contrast, regression analysis with either the log-normal or inverse Burr is justifiable.
+
+## Conclusion
+
+\large
+
+-   This line of research is "in the weeds," and the contribution is primarily methodological.
+
+-   But it is situated in a broader context of ongoing debates that have so far gone unresolved (and this is party because of the in-the-weeds factors to consider in this study).
+
+-   I don't want to resolve any questions about the best model for war size or the long peace—but I do want us to work from a better methodological foundation in order to address these questions in more fruitful ways.
+
+## Thank you!
+
+***Miles D. Williams***
+
+[Email]{.underline}: mdwilliams\@denison.edu
+
+[Website]{.underline}: [milesdwilliams15.github.io](#0)
+
+## References
+
+\tiny
